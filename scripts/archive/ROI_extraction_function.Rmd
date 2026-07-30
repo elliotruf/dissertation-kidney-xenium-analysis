@@ -1,0 +1,312 @@
+---
+title: "ROI extraction functions"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+# Function 1: Extract/Subset ROI from Seurat Object
+```{r}
+extract_roi <- function(
+    seurat_obj,
+    roi_csv
+) {
+  
+  # Read export
+  roi <- read.csv(
+    roi_csv,
+    skip = 2
+  )
+  
+  # Extract ROI IDs
+  roi_ids <- roi$Cell.ID
+  
+  # Match ROI IDs to Seurat IDs
+  cell_names <- rownames(seurat_obj@meta.data)
+
+  matched_cells <- cell_names[
+  sub("_[0-9]+$", "", cell_names) %in%
+  roi_ids
+]
+  
+  # Report matching
+  cat(
+        "ROI cells:",
+        length(roi_ids),
+        "\nMatched:",
+        length(matched_cells),
+        "\n"
+    )
+
+    if(length(matched_cells) == 0) {
+        stop("No matching cells found.")
+    }
+  
+  # Return ROI object
+  subset(
+        seurat_obj,
+        cells = matched_cells
+    )
+}
+```
+
+# Function 2: Extract ROI files from folder and match
+```{r}
+extract_roi_folder <- function(
+    seurat_obj,
+    folder_path
+) {
+
+    roi_files <- list.files(
+        folder_path,
+        pattern = "\\.csv$",
+        full.names = TRUE
+    )
+    
+    # Apply extract_roi() to each file in folder
+    roi_list <- lapply(
+        roi_files,
+        function(x) extract_roi( 
+            seurat_obj,
+            x
+        )
+    )
+
+    # Remove "_cells_stats.csv" from file name
+    roi_names <- gsub(
+        "_cells_stats\\.csv$", 
+        "",
+        basename(roi_files)
+    )
+
+    names(roi_list) <- roi_names
+
+    return(roi_list)
+}
+```
+
+# Function 3: Build cell composition data frames
+```{r}
+build_composition_df <- function(
+roi_list,
+celltype_column = "cell_type"
+) {
+
+composition_df <- do.call(
+    rbind,
+    lapply(
+        names(roi_list),
+        function(roi) {
+
+            comp <- prop.table(
+                table(
+                    droplevels(
+                        roi_list[[roi]][[celltype_column]]
+                    )
+                )
+            ) * 100
+
+            roi_df <- data.frame(
+                ROI = roi,
+                Cell_Type = names(comp), # Show selections in numerical order
+                Percent = as.numeric(comp)
+            )
+
+            roi_df <- roi_df[
+                order(-roi_df$Percent), # Show % by decreasing order
+            ]
+
+            return(roi_df)
+        }
+    )
+)
+
+rownames(composition_df) <- NULL
+
+return(composition_df)
+}
+```
+
+# Function 4: Add Xen1 metadata
+```{r}
+add_xen1_metadata <- function(df) {
+
+    df$ROI_Number <- as.numeric(
+        sub(
+            "Selection_([0-9]+).*",
+            "\\1",
+            df$ROI
+        )
+    )
+
+    df$Sex <- sub(
+        "Selection_[0-9]+_([FM])_.*",
+        "\\1",
+        df$ROI
+    )
+
+    df$Timepoint <- sub(
+        ".*_(wk[0-9]+)$",
+        "\\1",
+        df$ROI
+    )
+
+    df$Timepoint <- factor(
+        df$Timepoint,
+        levels = c(
+            "wk1",
+            "wk2",
+            "wk4",
+            "wk12"
+        )
+    )
+
+    df <- df[
+        order(df$Timepoint, df$ROI_Number),
+    ]
+
+    rownames(df) <- NULL
+
+    return(df)
+}
+```
+
+# Function 5: Add Xen2 metadata
+```{r}
+add_xen2_metadata <- function(df) {
+
+    df$ROI_Number <- as.numeric(
+        sub(
+            "Selection_([0-9]+).*",
+            "\\1",
+            df$ROI
+        )
+    )
+
+    df$Genotype <- sub(
+        "Selection_[0-9]+_([FM])_.*",
+        "\\1",
+        df$ROI
+    )
+
+    df$Timepoint <- sub(
+        ".*_(wk[0-9]+)$",
+        "\\1",
+        df$ROI
+    )
+
+    df$Timepoint <- factor(
+        df$Timepoint,
+        levels = c(
+            "Naive",
+            "24h",
+            "7d",
+            "14d",
+            "28d"
+        )
+    )
+
+    df <- df[
+        order(df$Timepoint, df$ROI_Number),
+    ]
+
+    rownames(df) <- NULL
+
+    return(df)
+}
+```
+
+# Run ROI extraction function
+```{r}
+xen1_rois_cortex_F <- extract_roi_folder(
+  xen1diet,
+  "D:/USERS/ELLIOT/Dissertation/xen1/SELECTIONS/XEN1_F_CORTEX"
+)
+```
+
+# Save extraction
+```{r}
+saveRDS(
+  xen1_rois_cortex_F,
+  file = "D:/USERS/ELLIOT/Dissertation/xen1/ROI extractions/xen1_rois_cortex_F.rds"
+)
+```
+
+# Run cell composition df functions
+```{r}
+xen1_cortex_F_composition <- build_composition_df(
+  xen1_rois_cortex_F
+)
+
+xen1_cortex_F_composition <- add_xen1_metadata(
+  xen1_cortex_F_composition
+)
+```
+
+# Save cell composition df
+```{r}
+write.csv(
+  xen1_cortex_F_composition,
+  "xen1/ROI Extractions/xen1_cortex_F_roi_composition.csv",
+  row.names = FALSE
+)
+```
+
+# ROI size summary
+```{r}
+roi_sizes <- data.frame(
+  ROI = names(xen1_rois_cortex_F),
+  Cells = sapply(
+    xen1_rois_cortex_F,
+    ncol
+  )
+)
+
+roi_sizes
+```
+
+# Mean composition plot
+```{r}
+library(dplyr)
+library(ggplot2)
+
+mean_comp <- xen1_cortex_F_composition %>%
+  group_by(
+    Timepoint,
+    Cell_Type
+  ) %>%
+  summarise(
+    Mean = mean(Percent),
+    SD = sd(Percent),
+    .groups = "drop"
+  )
+
+mean_comp_plot <- ggplot(
+  mean_comp,
+  aes(
+    x = Timepoint,
+    y = Mean,
+    fill = Cell_Type
+  )
+) + 
+  geom_col() +
+  labs(
+    title = "Mean Cell Composition: Xen1 Female Cortex",
+    x = "Developmental Timepoint",
+    y = "Mean Cell Composition (%)",
+    fill = "Cell Type"
+  ) +
+  theme_classic()
+
+mean_comp_plot
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen2_cortex_F_mean_comp.png",
+  plot = mean_comp_plot,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```

@@ -1,0 +1,68 @@
+---
+title: "Object Exploration"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Modules
+```{r}
+library(Seurat)
+```
+
+# Set working directory
+```{r}
+data_dir <- "D:/USERS/ELLIOT"
+```
+
+# Load diet Xenium objects
+```{r}
+xen1diet <- readRDS("D:/USERS/ELLIOT/xen1/Diet_obj_for_Pseudotime.rds")
+
+xen2diet <- readRDS("D:/USERS/ELLIOT/xen2/Diet_obj_for_Pseudotime.rds")
+```
+
+# Load full Xenium objects
+```{r}
+xen1 <- readRDS("D:/USERS/ELLIOT/xen1/merged.samples.IndividualBanksy_AGFTrue_Lambda0.05_Resolution1.5_Annotated.rds")
+
+xen2 <- readRDS("D:/USERS/ELLIOT/xen2/02.merged.samples.IndividualBanksy_AGFTrue_Lambda0.05_1.5res.rds")
+```
+
+# Get feature/gene list
+```{r}
+gene_panel <- rownames(xen1diet@assays$Xenium)
+
+length(gene_panel) # QC
+head(gene_panel)
+
+write.csv(
+  data.frame(gene = gene_panel),
+  "Xenium_gene_panel.csv",
+  row.names = FALSE
+)
+```
+
+# Get cell type list
+```{r}
+xen1_celltype <- sort(unique(xen1$cell_type))
+
+write.csv(
+  data.frame(cellType = xen1_celltype),
+  "Xen1_celltype_list.csv",
+  row.names = FALSE
+)
+```
+
+# Get cell type vs. count table
+```{r}
+cell_count <- as.data.frame(table(xen1$cell_type))
+
+cell_count <- cell_count[order(cell_count$Freq, decreasing = TRUE), ]
+
+write.csv(
+  data.frame(cellType = cell_count),
+  "CellType_count.csv",
+  row.names = FALSE
+)
+```

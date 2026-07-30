@@ -1,0 +1,65 @@
+---
+title: "ROI_extraction_test"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load modules
+```{r}
+library(Seurat)
+```
+
+# Load ROI selection
+```{r}
+ROI_1_Xen1_F_wk1 <- read.csv(
+  "D:/USERS/ELLIOT/Dissertation/xen1/SELECTIONS/XEN1_F_CORTEX/Selection_1_F_wk1_cells_stats.csv",
+  skip = 2 # Skip metadata
+)
+
+# Extract Cell IDs from ROI
+ROI_1_Xen1_F_wk1_cells <- ROI_1_Xen1_F_wk1$Cell.ID
+
+# Match and subset cells
+cell_names <- rownames(xen1diet@meta.data)
+
+ROI_1_matched_cells <- cell_names[
+  sub("_[0-9]+$", "", cell_names) %in%
+  ROI_1_Xen1_F_wk1_cells
+]
+
+Xen1_ROI_1 <- subset(
+  xen1diet,
+  cells = ROI_1_matched_cells
+)
+```
+
+# Examine ROI
+```{r}
+# Plot ROI UMAP
+Xen1_ROI_1_UMAP <- DimPlot(
+  Xen1_ROI_1,
+  reduction = "umap",
+  group.by = "cell_type",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+  ncol = 2
+) + NoLegend()
+
+Xen1_ROI_1_UMAP
+```
+
+# Cell composition summary
+```{r}
+ROI_1_summary <- sort(
+  prop.table(
+    table(droplevels(Xen1_ROI_1$cell_type))
+  ) 
+  * 100,
+  decreasing = TRUE
+)
+
+ROI_1_summary
+```

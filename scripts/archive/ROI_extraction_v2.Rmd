@@ -1,0 +1,229 @@
+---
+title: "ROI extraction v2"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Modules
+```{r}
+library(Seurat)
+library(readxl)
+library(tidyverse)
+library(fs)
+```
+
+# Load Diet Objects
+```{r}
+xen1diet <- readRDS("D:/USERS/ELLIOT/Dissertation/xen1/Diet_obj_for_Pseudotime.rds")
+
+xen2diet <- readRDS("D:/USERS/ELLIOT/Dissertation/xen2/Diet_obj_for_Pseudotime.rds")
+```
+
+# Load Xen2 Annotations
+```{r}
+xen2cell_type <- read_excel("D:/USERS/ELLIOT/Dissertation/xen2/Xen2_cluster_names 1.xlsx")
+
+# Map cluster IDs to biological annotations
+cluster_map <- setNames(
+  xen2cell_type$name,
+  xen2cell_type$group
+)
+
+# Add annotations as Seurat metadata
+xen2diet$cell_type <- unname(
+  cluster_map[
+    as.character(xen2diet$seurat_clusters)
+  ]
+)
+```
+
+# Settings
+```{r}
+settings <- list(
+  # Specify directory of ROIs
+  roi_dir = "D:/USERS/ELLIOT/Dissertation/xen1/Xen1_Female_Vessels",
+  
+  # Specify order of metadata in the folder name
+  ## Timepoints handled by child directories, not here.
+  ## Group refers to sex (xen1), genotype (xen2), etc.
+  metadata = c("sample", "group", "tissue")
+)
+
+```
+
+# Function 1: Locate ROI files
+```{r}
+find_rois <- function(roi_files) {
+  
+  roi_files <- list.files(
+    path = settings$roi_dir,
+    recursive = TRUE,
+    pattern = "_cells_stats\\.csv$",
+    full.names = TRUE
+    )
+}
+```
+
+# Function 2: Build ROI tibble
+```{r}
+build_roi_tibble <- function(roi_files) {
+  
+  metadata <- settings$metadata
+  
+  roi_tibble <- tibble(
+  file = roi_files,
+  ) %>%
+    mutate(
+      filename = basename(file),
+    
+      ## Timepoints
+      timepoint = basename(dirname(file)),
+    
+      ## Sample
+      sample_folder = basename(dirname(dirname(file)))
+    ) %>%
+  
+    # Split folder into parts
+    separate(
+      sample_folder,
+      into = metadata,
+      sep = "_",
+      remove = FALSE,
+      fill = "right"
+    ) %>%
+    mutate(
+      roi = str_remove(
+        filename,
+        "_cell_stats\\.csv$"
+      )
+    )
+  
+  # Read ROI .csv
+  roi_tibble <- roi_tibble %>%
+    mutate(
+      roi_data = purrr::map(
+        file, 
+        ~ read_csv(.x,
+                  skip = 2,
+                  show_col_types = FALSE)
+        ),
+      cell_ids = purrr::map(
+        roi_data,
+        ~ .x[["Cell ID"]]
+      )
+    )
+
+  # Reorder columns by importance
+  roi_tibble <- roi_tibble %>%
+    relocate(
+      sample,
+      group,
+      tissue,
+      timepoint,
+      roi
+    )
+  
+  return(roi_tibble)
+}
+```
+
+# Function 3: Create ROI Object
+```{r}
+create_roi_object <- function(roi_row, seurat_obj) {
+  
+  roi_ids <- roi_row$cell_ids[[1]]
+  
+  matched_cells <- Cells(seurat_obj)[
+    sub("_[0-9]+$", "", Cells(seurat_obj)) %in%
+      roi_ids
+  ]
+  
+    # Report matching
+  if (length(matched_cells) == 0) {
+    stop("No matching cells found.")
+  }
+  
+  if (length(unique(matched_cells)) != length(matched_cells)) {
+    warning("Duplicate matched cells detected")
+  }
+  
+  cat(
+    "ROI:", roi_row$group, roi_row$tissue, roi_row$timepoint, roi_row$roi, "\n",  
+    "ROI cells:", length(roi_ids), "\n",
+    "Matched:", length(matched_cells),"\n\n"
+  )
+  
+  # Return ROI object
+  roi_obj <- subset(seurat_obj, cells = matched_cells)
+  
+  roi_obj$roi <-roi_row$roi
+  roi_obj$timepoint <- roi_row$timepoint
+  roi_obj$tissue <- roi_row$tissue
+  roi_obj$group <- roi_row$group
+  
+  return(roi_obj)
+  
+}
+```
+
+# Function 4: Build ROI Objects
+```{r}
+build_roi_objects <- function(roi_tibble, seurat_obj) {
+  
+  roi_objects <- purrr::map(
+    seq_len(nrow(roi_tibble)),
+    ~ create_roi_object(
+      roi_tibble[.x, ],
+      seurat_obj
+    )
+  )
+  
+  names(roi_objects) <- roi_tibble$roi
+  
+  return(roi_objects)
+}
+```
+
+
+# Function 5: Extract ROIs
+```{r}
+extract_rois <- function(seurat_obj) {
+
+  # Get ROIs from ROI directory
+  roi_files <- find_rois(settings$roi_dir)
+
+  # Build ROI tibble
+  roi_tibble <- build_roi_tibble(roi_files)
+
+  # Build ROI Seurat Objects
+  roi_objects <- build_roi_objects(roi_tibble, seurat_obj)
+
+  # Save ROI objects
+  saveRDS(
+    roi_objects,
+    file = file.path(
+        "results",
+        "objects",
+        paste0(settings$sample, "_roi_objects.rds")
+    )
+  )
+
+  # Save ROI tibble
+  saveRDS(
+    roi_tibble,
+    file = file.path(
+      "results",
+      "objects",
+      paste0(settings$sample, "_roi_tibble.rds")
+    )
+  )
+  
+  # Return
+  return(list(
+    roi_tibble = roi_tibble,
+    roi_objects = roi_objects
+  ))
+}
+
+```

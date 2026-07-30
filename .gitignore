@@ -1,0 +1,35 @@
+#  History
+.Rhistory
+.Rdata
+.RDataTmp*
+.Rproj.user/
+*.RProj
+*.txt
+
+# Large object files
+*.rds
+*.RDS
+*.h5ad
+*.h5adSeurat
+
+# Python cacche
+__pycache__/
+*.pyc
+
+# Data folders
+/xen1/
+/xen2/
+/data/
+/results/
+/info/
+
+# Temporary outputs
+tmp/
+temp/
+
+# OS files
+Desktop.ini
+Thumbs.db
+
+# VS Code
+.vscode/

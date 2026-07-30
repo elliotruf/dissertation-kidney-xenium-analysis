@@ -1,0 +1,42 @@
+---
+title: "data_Loading"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Modules
+```{r}
+library(Seurat)
+library(readxl)
+```
+
+# Load diet Xenium objects
+```{r}
+xen1diet <- readRDS("D:/USERS/ELLIOT/Dissertation/xen1/Diet_obj_for_Pseudotime.rds")
+
+xen2diet <- readRDS("D:/USERS/ELLIOT/Dissertation/xen2/Diet_obj_for_Pseudotime.rds")
+```
+
+# Add Xen2 cell type annotations
+```{r}
+xen2cell_type <- read_excel("D:/USERS/ELLIOT/Dissertation/xen2/Xen2_cluster_names 1.xlsx")
+
+# Map cluster IDs to biological annotations
+cluster_map <- setNames(
+  xen2cell_type$name,
+  xen2cell_type$group
+)
+
+# Add annotations as Seurat metadata
+xen2diet$cell_type <- unname(
+  cluster_map[
+    as.character(xen2diet$seurat_clusters)
+  ]
+)
+```
+
+# Load ROI extraction
+```{r}
+roi_objects <- readRDS(file = "results/objects/Xen2_WT_Vessels_roi_objects.rds")
+```

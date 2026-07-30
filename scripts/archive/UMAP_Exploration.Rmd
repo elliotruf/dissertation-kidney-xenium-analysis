@@ -1,0 +1,249 @@
+---
+title: "Data Exploration"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# To be used after running the "data_Loading.Rmd" script
+# Modules
+```{r}
+library(Seurat)
+library(ggplot2)
+```
+
+# Annotated Xen1 UMAP - Full object
+```{r}
+UMAP_xen1annotated <- DimPlot(
+  xen1,
+  reduction = "umap",
+  group.by = "cell_type",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+) + NoLegend()
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen1annotated-global-UMAP.png",
+  plot = UMAP_xen1annotated,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+
+# Annotated Xen2 UMAP - Full object
+```{r}
+UMAP_xen2annotated <- DimPlot(
+  xen2,
+  reduction = "umap",
+  group.by = "cell_type",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+) + NoLegend()
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen2annotated-global-UMAP.png",
+  plot = UMAP_xen2annotated,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+
+# Xen1 Timepoint UMAPs - full object
+```{r}
+# Factorise to ensure numerical order
+xen1$time_point <- factor(
+  xen1$time_point,
+  levels = c("1wk", "2wk", "4wk", "12wk")
+)
+
+# Plot timepoint UMAP panel
+UMAP_xen1annotated_timepoints <- DimPlot(
+  xen1,
+  reduction = "umap",
+  group.by = "cell_type",
+  split.by = "time_point",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+  ncol = 2
+) + NoLegend()
+
+UMAP_xen1annotated_timepoints
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen1annotated-timepoint-UMAP.png",
+  plot = UMAP_xen1annotated_timepoints,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+# Xen2 Timepoint UMAPs - full object
+```{r}
+# Factorise to ensure numerical order
+xen2$time_point <- factor(
+  xen2$time_point,
+  levels = c("Naive", "24h", "7d", "14d", "28d")
+)
+
+# Plot timepoint UMAP
+UMAP_xen2annotated_timepoints <- DimPlot(
+  xen2,
+  reduction = "umap",
+  group.by = "cell_type",
+  split.by = "time_point",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+  ncol = 2
+) + NoLegend()
+
+UMAP_xen2annotated_timepoints
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen2annotated-timepoint-UMAP.png",
+  plot = UMAP_xen2annotated_timepoints,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+
+# Xen1 sex UMAPs - diet object
+```{r}
+UMAP_xen1annotated_sex <- DimPlot(
+  xen1diet,
+  reduction = "umap",
+  group.by = "cell_type",
+  split.by = "sample_id",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+  ncol = 2
+) + NoLegend()
+
+UMAP_xen1annotated_sex
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen1annotated-sex-UMAP.png",
+  plot = UMAP_xen1annotated_sex,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+
+# Xen2 genotype UMAPs - diet object
+```{r}
+UMAP_xen2annotated_genotype <- DimPlot(
+  xen2diet,
+  reduction = "umap",
+  group.by = "cell_type",
+  split.by = "sample_id",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+) + NoLegend()
+
+UMAP_xen2annotated_genotype
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen2annotated-genotype-UMAP.png",
+  plot = UMAP_xen2annotated_genotype,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+
+# Xen1 Stroma-only UMAP
+```{r}
+xen1diet_stroma <- subset(
+  xen1diet,
+  subset = grep("^STROMA", cell_type)
+)
+
+# Plot stroma-only subset
+UMAP_xen1annotated_stroma <- DimPlot(
+  xen1diet_stroma,
+  reduction = "umap",
+  group.by = "cell_type",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+) + NoLegend()
+
+UMAP_xen1annotated_stroma
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen1annotated-stroma-UMAP.png",
+  plot = UMAP_xen1annotated_stroma,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```
+
+# Xen2 Stroma-only UMAP
+```{r}
+xen2diet_stroma <- subset(
+  xen2diet,
+  subset = grep("^STROMA", cell_type)
+)
+
+# Plot stroma-only subset
+UMAP_xen2annotated_stroma <- DimPlot(
+  xen2diet_stroma,
+  reduction = "umap",
+  group.by = "cell_type",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+) + NoLegend()
+
+UMAP_xen2annotated_stroma
+```
+
+# Save
+```{r}
+ggsave(
+  filename = "xen2annotated-stroma-UMAP.png",
+  plot = UMAP_xen2annotated_stroma,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+```

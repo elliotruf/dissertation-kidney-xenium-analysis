@@ -1,0 +1,67 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load Modules
+```{r}
+library(Seurat)
+library(readxl)
+library(SingleCellExperiment)
+library(zellkonverter)
+
+source("scripts/helpers/project_paths_v3.R")
+source("scripts/helpers/wholekidney_celltype_functions_v2.R")
+source("scripts/helpers/plotting_functions_v3.R")
+source("scripts/helpers/output_functions_v3.R")
+source("scripts/helpers/pseudobulk_functions_v3.R")
+```
+
+# Load data
+```{r}
+xen1diet <- readRDS("xen1/xen1diet.rds")
+```
+
+# Broad Cell Types + Set Assay
+```{r}
+xen1diet <- add_broad_celltypes(xen1diet)
+
+DefaultAssay(xen1diet) <- "Xenium"
+```
+
+# Check data
+```{r}
+head(xen1diet@meta.data[, c(
+  "cell_type",
+  "broad_celltype",
+  "time_point"
+)])
+
+head(xen1diet@meta.data[, c(
+  "sdimx",
+  "sdimy"
+)])
+
+```
+
+# Save to intermediate
+```{r}
+SaveH5Seurat(
+  xen1diet,
+  filename = "Xen1diet.h5Seurat",
+  overwrite = TRUE
+)
+```
+
+# Convert to H5AD
+```{r}
+sce <- as.SingleCellExperiment(xen1diet)
+
+writeH5AD(
+    sce,
+    file = "Xen1diet.h5ad"
+)
+```
+```

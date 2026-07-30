@@ -1,0 +1,436 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+# Installations
+```{r}
+library(devtools)
+devtools::install_github("JEFworks-Lab/MERINGUE")
+BiocManager::install("BiocNeighbors")
+devtools::install_github("KlugerLab/ALRA")
+devtools::install_github("zdebruine/RcppML")
+devtools:install_github("presto")
+
+install.packages('NMF')
+devtools::install_github("jokergoo/circlize")
+devtools::install_github("jokergoo/ComplexHeatmap")
+
+install.packages("Rfast", type = "source") 
+# in case of error regarding Rfast
+# when running CellChat Inference pathway
+
+devtools::install_github("jinworks/SpatialCellChat")
+
+```
+
+# Load dependencies
+```{r}
+library(Seurat)
+library(edgeR)
+library(Matrix)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(enrichplot)
+library(ggplot2)
+library(ggrepel)
+library(tidyverse)
+library(presto)
+library(conflicted)
+library(readxl)
+
+# CellChat specific dependencies
+library(SpatialCellChat)
+library(Matrix)
+library(patchwork)
+options(stringsAsFactors = F)
+conflicted::conflicts_prefer(base::union)
+
+source("scripts/helpers/project_paths_v3.R")
+source("scripts/helpers/wholekidney_celltype_functions_v2.R")
+source("scripts/helpers/plotting_functions_v3.R")
+source("scripts/helpers/output_functions_v3.R")
+source("scripts/helpers/pseudobulk_functions_v3.R")
+```
+
+# Load object
+```{r}
+xen1diet <- readRDS("D:/USERS/ELLIOT/Dissertation/xen1/xen1diet.rds")
+```
+
+# Add broad cell types
+```{r}
+xen1diet <- add_broad_celltypes(xen1diet)
+```
+
+```{r}
+set.seed(1)
+
+cells <- sample(colnames(xen1diet), 20000)
+
+test_obj <- subset(xen1diet, cells = cells)
+```
+
+# Load ligand receptor pairs
+```{r}
+lr_raw <- read_xlsx("info/Xenium_Probe_List_May2025 3.xlsx", sheet = 2)
+
+lr_pairs <- lr_raw[
+  nzchar(trimws(lr_raw$Ligand)) & nzchar(trimws(lr_raw$Receptor)),
+  c("Ligand", "Receptor")
+]
+
+lr_pairs$Ligand <- trimws(lr_pairs$Ligand)
+lr_pairs$Receptor <- trimws(lr_pairs$Receptor)
+lr_pairs <- unique(lr_pairs)
+
+# Cleaning
+lr_pairs <- na.omit(lr_pairs) # Remove NAs
+
+# Remove parentheses strings
+lr_pairs$Ligand <- gsub(r"{\s*\([^\)]+\)}","",as.character(lr_pairs$Ligand))
+lr_pairs$Receptor <- gsub(r"{\s*\([^\)]+\)}","",as.character(lr_pairs$Receptor))
+
+# Convert human-style format (all caps) to mouse-style format
+
+fix_mouse_case <- function(x) {
+  is_allcaps <- x == toupper(x) & nchar(x) > 1
+  x[is_allcaps] <- paste0(
+    toupper(substr(x[is_allcaps], 1, 1)),
+    tolower(substr(x[is_allcaps], 2, nchar(x[is_allcaps])))
+  )
+  x
+}
+
+lr_pairs$Ligand <- fix_mouse_case(lr_pairs$Ligand)
+lr_pairs$Receptor <- fix_mouse_case(lr_pairs$Receptor)
+
+# Manual alias correction
+alias_fix <- c(EPCR = "Procr")
+
+apply_alias <- function(x) ifelse(x %in% names(alias_fix), alias_fix[x], x)
+
+lr_pairs$Ligand   <- apply_alias(lr_pairs$Ligand)
+lr_pairs$Receptor <- apply_alias(lr_pairs$Receptor)
+
+# Sort "Integrins" issue
+generic_integrin_rows <- lr_pairs$Receptor == "Integrins"
+if (any(generic_integrin_rows)) {
+  message(
+    "Dropping generic 'Integrins' placeholder rows (Itgb1 not measured, ",
+    "so no specific heterodimer is resolvable):\n",
+    paste(sprintf(" %s -> Integrins", lr_pairs$Ligand[generic_integrin_rows]), collapse = "\n")
+  )
+}
+
+lr_pairs <- lr_pairs[!generic_integrin_rows, ]
+
+or_semantics_row <- lr_pairs$Receptor == "Integrins/LRP1"
+lr_pairs$Receptor[or_semantics_row] <- "Lrp1"
+if (any(or_semantics_row)) {
+  message("Resolved 'Integrins/LRP1' (OR semantics) to Lrp1 only (integrins unmeasured).")
+}
+
+# Sort "PDGFs" issue
+generic_pdgf_rows <- lr_pairs$Ligand == "PDGFs"
+if (any(generic_pdgf_rows)) {
+  message(
+    "Dropping generic 'PDGFs' placeholder rows (no PDGF ligand gene measured):\n",
+    paste(sprintf("  PDGFs -> %s", lr_pairs$Receptor[generic_pdgf_rows]), collapse = "\n")
+  )
+}
+lr_pairs <- lr_pairs[!generic_pdgf_rows, ]
+
+# Sort FGFR1/KLB Issue
+klb_row <- lr_pairs$Receptor == "Fgfr1/klb"
+lr_pairs$Receptor[klb_row] <- "Fgfr1"
+if (any(klb_row)) message("Resolved 'FGFR1/KLB' to Fgfr1 only (KLB co-receptor not measured -- interaction is approximate).")
+
+# Sort "CCL5 ligands" / "Cxcr6" issue
+
+# Drop pairs NOT in Xenium gene panel
+not_measured <- c(
+  "Pdgfa", "Pdgfb", "Pdgfc", "Pdgfd",  # PDGF ligands not in panel
+  "Cxcr4", "Ccr9",                      # receptors flagged absent
+  "Itga1", "Itga2", "Itgb1",            # collagen-integrin subunits not measured
+  "Procr",                                # EPCR/Procr absent"
+  "CCL5 ligands", "Cxcr6"               # non-canonical
+)
+
+is_measured <- function(gene_str) {
+  # handles "Itga4/Itgb1"-style complexes: require ALL components measured
+  genes <- strsplit(gene_str, "/")[[1]]
+  all(!genes %in% not_measured)
+}
+ 
+lr_pairs$keep <- mapply(function(l, r) is_measured(l) && is_measured(r),
+                         lr_pairs$Ligand, lr_pairs$Receptor)
+ 
+dropped <- lr_pairs[!lr_pairs$keep, c("Ligand", "Receptor")]
+if (nrow(dropped) > 0) {
+  message("Dropped (gene not measured):\n",
+          paste(sprintf("  %s -> %s", dropped$Ligand, dropped$Receptor), collapse = "\n"))
+}
+ 
+lr_pairs_clean <- lr_pairs[lr_pairs$keep, c("Ligand", "Receptor")]
+```
+
+# Prepare Spatial Transcriptomics Information
+```{r}
+data_input <- test_obj@assays$Xenium@layers[["data"]]
+
+rownames(data_input) <- rownames(test_obj@assays$Xenium)
+colnames(data_input) <- colnames(test_obj)
+
+meta <- data.frame(
+  labels = test_obj$cell_type,
+  row.names = colnames(test_obj)
+)
+  
+spatial_locs <- data.frame(
+  labels = test_obj$cell_type,
+  row.names = colnames(test_obj)
+)
+
+spatial_factors <- data.frame(ratio = 1, tol = 5)
+
+```
+
+# Function: build custom CCDB from pair list
+```{r}
+
+build_custom_lr_db <- function(
+    lr_pairs,
+    species = c("mouse", "human")
+) { 
+  
+  species <- match.arg(species)
+  CellChatDB <- if (species == "mouse") CellChatDB.mouse else CellChatDB.human
+  
+  interaction_db <- CellChatDB$interaction
+  complex_db <- CellChatDB$complex
+  
+  expand_to_genes <- function(name) {
+    if (name %in% rownames(complex_db)) {
+      subunits <- unlist(complex_db[name, ])
+      subunits <- subunits[nzchar(subunits)]
+      return(unique(as.character(subunits)))
+    }
+    name 
+  }
+  
+  interaction_db$ligand_genes <- lapply(interaction_db$ligand, expand_to_genes)
+  interaction_db$receptor_genes <- lapply(interaction_db$receptor, expand_to_genes)
+  
+  lr_pairs$matched <- FALSE
+  matched_interaction_names <- character(0)
+  
+  for (i in seq_len(nrow(lr_pairs))) {
+    
+    lig <- lr_pairs$Ligand[i]
+    rec <- lr_pairs$Receptor[i]
+    
+    hits <- vapply(seq_len(nrow(interaction_db)), function(j) {
+      lig %in% interaction_db$ligand_genes[[j]] &&
+        rec %in% interaction_db$receptor_genes[[j]]
+    }, logical(1))
+    
+    if (any(hits)) {
+      lr_pairs$matched <- TRUE
+      matched_interaction_names <- union(
+        matched_interaction_names,
+        rownames(interaction_db)[hits]
+      )
+    }
+  }
+  
+  n_matched <- sum(lr_pairs$matched)
+  n_total <- nrow(lr_pairs)
+  
+  if (n_matched < n_total) {
+    message(
+      "Unmatched pairs (not found in CellChatDB, even after expanding complexes):\n",
+      paste(
+        sprintf(" %s -> %s", lr_pairs$Ligand[!lr_pairs$matched], lr_pairs$Receptor[!lr_pairs$matched]),
+        collapse = "\n"
+      ),
+      "\nThese will NOT be included in the analysis unless manually added to CellChatDB "
+    )
+  }
+  
+  CellChatDB.use <- CellChatDB
+  CellChatDB.use$interaction <- interaction_db[matched_interaction_names, ]
+  CellChatDB.use$interaction$ligand_gens <- NULL
+  CellChatDB.use$interaction$receptor_genes <- NULL
+  
+  list(
+    CellChatDB.use = CellChatDB.use,
+    match_report = lr_pairs
+  )
+  
+  }
+```
+
+
+
+# Function: Prepare CellChat (per timepoint)
+```{r}
+prepare_cellchat_inputs <- function(
+    seurat_obj,
+    timepoint,
+    time_col = "time_point",
+    celltype_col = "broad_celltype",
+    ratio = 1,
+    tol = 5
+) { 
+
+  keep <- !is.na(seurat_obj@meta.data[[time_col]]) &
+    seurat_obj@meta.data[[time_col]] == timepoint
+  
+  if (sum(keep) == 0) {
+    stop("prepare_cellchat_inputs: no cells found for timepoint = ", timepoint)
+  }
+  
+  sub_obj <- seurat_obj[, keep]
+  
+  # expression matrix
+  data_input <- sub_obj@assays$Xenium@layers[["data"]]
+
+  rownames(data_input) <- rownames(sub_obj@assays$Xenium)
+  colnames(data_input) <- colnames(sub_obj)
+  
+  # cell type labels
+  meta <- data.frame(
+    labels = sub_obj@meta.data[[celltype_col]],
+    row.names = colnames(sub_obj)
+  )
+  
+  # spatial coordiantes
+  spatial_locs <- data.frame(
+    x = sub_obj$sdimx,
+    y = sub_obj$sdimy,
+    row.names = colnames(sub_obj)
+  )
+  
+  spatial_factors <- data.frame(ratio = ratio, tol = tol)
+  
+  list(
+    data_input = data_input,
+    meta = meta,
+    spatial_locs = spatial_locs,
+    spatial_factors = spatial_factors,
+    n_cells = sum(keep)
+  )
+} 
+```
+
+# Build custom LR database
+```{r}
+  # Build custom LR database
+  
+  lr_pairs <- lr_pairs_clean
+  
+  lr_result <- build_custom_lr_db(lr_pairs[, c("Ligand", "Receptor")], species = "mouse")
+  CellChatDB.use <- lr_result$CellChatDB.use
+  
+  timepoints <- c("1wk", "2wk", "4wk", "12wk")
+```
+
+# Create cell chat inputs for broad type
+```{r}
+cellchat_inputs_broad <- setNames(
+  lapply(timepoints, function(tp) {
+    message("Preparing inputs for: ", tp)
+    prepare_cellchat_inputs(xen1diet, timepoint = tp, celltype_col = "broad_celltype")
+  }),
+  timepoints
+)
+
+sapply(cellchat_inputs_broad, function(x) x$n_cells)
+```
+
+# Sanity check
+```{r}
+sapply(cellchat_inputs_broad, function(x) x$n_cells)
+```
+
+# Create CellChat objects
+```{r}
+cellchat_objects_broad <- lapply(names(cellchat_inputs_broad), function(tp) {
+  inp <- cellchat_inputs_broad[[tp]]
+  message("Creating CellChat object for: ", tp)
+  cc <- createSpatialCellChat(
+    object = inp$data_input,
+    meta = inp$meta,
+    group.by = "labels",
+    datatype = "spatial",
+    coordinates = inp$spatial_locs,
+    spatial.factors = inp$spatial_factors
+  )
+  cc@DB <- CellChatDB.use
+  cc
+})
+names(cellchat_objects_broad) <- names(cellchat_inputs_broad)
+
+cellchat_objects_broad
+
+```
+
+# Run CellChat Inference across all timepoints
+```{r}
+shared_scale_distance <- 100
+
+cellchat_objects_broad <- lapply(names(cellchat_objects_broad), function(tp) {
+  
+  out_file <- paste0("cellchat_", tp, "_processed.rds")
+  
+  # Skip re-running a timepoint that already successfully completed
+  if (file.exists(out_file)) {
+    message(tp, " already processed -- loading from disk instead of re-running.")
+    return(readRDS(out_file))
+  }
+  
+  message("Running inference pipeline for: ", tp)
+  cc <- cellchat_objects_broad[[tp]]
+  
+  message("subsetData")
+cc <- subsetData(cc)
+saveRDS(cc, "01_subset.rds")
+
+  message("identify genes")
+cc <- identifyOverExpressedGenes(cc)
+saveRDS(cc, "02_genes.rds")
+
+  message("identify interactions")
+cc <- identifyOverExpressedInteractions(cc)
+saveRDS(cc, "03_interactions.rds")
+  
+  message("compute probabilities")
+  cc <- computeCommunProb(
+    cc,
+    distance.use = TRUE,
+    interaction.range = 250,
+    scale.distance = shared_scale_distance,
+    contact.dependent = TRUE,
+    contact.range = 10
+  )
+  
+  cc <- filterCommunication(cc, min.cells = 10)
+  cc <- computeCommunProbPathway(cc)
+  cc <- aggregateNet(cc)
+  
+  # Save timepoint immediately
+  saveRDS(cc, out_file)
+  message(tp, " cmompleted and saved [", Sys.time(), "]")
+  
+  cc
+})
+names(cellchat_objects_broad) <- names(cellchat_inputs_broad)
+
+# final combined save
+saveRDS(cellchat_objects_broad, "cellchat_objects_broad_processed.rds")
+
+```
+
+

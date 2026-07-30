@@ -1,0 +1,237 @@
+---
+title: "Pseudobulk Differential Expression"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Installs
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("edgeR")
+
+install.packages("RnaSeqGeneEdgeRQL")
+```
+
+# Load modules
+```{r}
+library(Seurat)
+library(edgeR)
+library(ggplot2)
+library(dplyr)
+library(Matrix)
+library(pheatmap)
+```
+
+# Function 6: Pseudobulk ROIs
+```{r}
+# Usage: pseudobulked_rois <- build_pseudobulk(roi_list, add_xen1_metadata)
+
+build_pseudobulk <- function(
+    roi_list,
+    metadata_fun = NULL,
+    assay = "Xenium",
+    layer = "counts"
+) {
+  
+  # Build summed ROI matrix
+  counts <- lapply(
+  roi_list,
+  function(x) {
+    
+    Matrix::rowSums(
+      LayerData(
+        x,
+        assay = assay,
+        layer = layer
+      )
+    )
+  }
+)
+
+count_matrix <- do.call(
+  cbind,
+  counts,
+)
+
+colnames(count_matrix) <- names(roi_list)
+
+metadata <- NULL
+
+if (!is.null(metadata_fun)) {
+  metadata <- data.frame(
+    ROI = names(roi_list)
+  )
+  
+  metadata <- metadata_fun(metadata)
+  
+  count_matrix <- count_matrix[
+    ,
+    match(metadata$ROI, colnames(count_matrix))
+  ]
+  
+  return(list(
+    counts = count_matrix,
+    metadata = metadata
+  ))
+}
+}
+```
+
+# Add metadata to matrix
+```{r}
+xen1_pb <- build_pseudobulk(
+  xen1_rois_cortex_F,
+  add_xen1_metadata
+)
+```
+
+# Create DGE object
+```{r}
+dge <- DGEList(
+  counts = xen1_pb$counts,
+  samples = xen1_pb$metadata
+)
+```
+
+# Filter genes
+```{r}
+# Filter by expression 
+keep <- filterByExpr(
+  dge,
+  group = dge$Timepoint
+)
+
+dge <- dge[
+  keep,
+  ,
+  keep.lib.sizes = FALSE
+]
+```
+
+# Normalise
+```{r}
+dge <- calcNormFactors(dge)
+
+```
+
+# Design matrix
+```{r}
+design <- model.matrix(
+  ~ dge$Timepoint,
+  data = pb$metadata
+)
+design
+```
+
+# Filter genes
+keep <- filterByExpr(
+  dge,
+  group = metadata$Timepoint
+)
+
+dge <- dge[
+  keep,
+  ,
+  keep.lib.sizes = FALSE
+]
+
+# Normalise
+dge <- calcNormFactors(dge)
+
+# Design matrix
+design <- model.matrix(
+  ~ Timepoint,
+  data = xen1_pb$metadata
+)
+
+# Estimate dispersal
+```{r}
+dge <- estimateDisp(
+  dge,
+  design,
+  robust = TRUE
+)
+```
+
+# Fit model
+```{r}
+fit <- glmQLFit(
+  dge,
+  design,
+  robust = TRUE
+)
+```
+
+# Quasi-likelihood F-test
+```{r}
+qlf <- list()
+for(i in 1:ntimep){
+  qlf[[i]] <- glmQLFTest(fit, contrast=contr[,i])
+  qlf[[i]]$comparison <- paste0("Timepoint", levels(Timepoint)[i], "_vs_others")
+}
+
+length(qlf)
+```
+
+# Top differentially expressed genes across timepoints of healthy female cortex
+```{r}
+topTags(qlf[[1]], n=10L)
+```
+
+```{r}
+dt <- lapply(lapply(qlf, decideTests), summary)
+dt.all <- do.call("cbind", dt)
+dt.all
+```
+
+
+
+
+# Pseudobulking with ROIs
+```{r}
+roi_counts <- lapply(
+  xen1_rois_cortex_F,
+  function(x) {
+    
+    Matrix::rowSums(
+      LayerData(
+        x,
+        assay = "Xenium",
+        layer = "counts"
+      )
+    )
+  }
+)
+
+count_matrix <- do.call(
+  cbind,
+  roi_counts
+)
+```
+
+
+
+
+```{r}
+lcpm <- edgeR::cpm(dge, log=TRUE)
+annot <- data.frame(Timepoint=paste0("Timepoint ", Timepoint))
+rownames(annot) <- colnames(dge)
+ann_colors <- list(cluster=2:8)
+names(ann_colors$cluster) <- paste0("Timepoint ", levels(Timepoint))
+pheatmap::pheatmap(lcpm[topMarkers, ], breaks=seq(-2,2,length.out=101),
+                   color=colorRampPalette(c("blue","white","red"))(100), scale="row",
+                   cluster_cols=TRUE, border_color="NA", fontsize_row=5,
+                   treeheight_row=70, treeheight_col=70, cutree_cols=7,
+                   clustering_method="ward.D2", show_colnames=FALSE,
+                   annotation_col=annot, annotation_colors=ann_colors)
+
+
+```
+
+
+
+
+

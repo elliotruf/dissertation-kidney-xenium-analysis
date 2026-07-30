@@ -1,0 +1,24 @@
+---
+title: "Vessels Sex-Pooled DE"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+Xen1_Male_Vessels_roi_objects <- readRDS(file = "D:/USERS/ELLIOT/Dissertation/results/objects/Xen1_Male_Vessels_roi_objects.rds")
+  
+Xen1_Female_Vessels_roi_objects <- readRDS(file = "D:/USERS/ELLIOT/Dissertation/results/objects/Xen1_Female_Vessels_roi_objects.rds")
+
+Xen1_All_Vessels <- c(
+  Xen1_Male_Vessels_roi_objects,
+  Xen1_Female_Vessels_roi_objects
+)
+```
+
+```{r}
+Xen1_All_Vessels_roi_objects <- saveRDS(
+  rois,
+  file = "D:/USERS/ELLIOT/Dissertation/results/objects/Xen1_All_Vessels_roi_objects.rds")
+
+```

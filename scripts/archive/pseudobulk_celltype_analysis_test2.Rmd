@@ -1,0 +1,483 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Data
+```{r}
+xen1_rois_cortex_F <- readRDS(file =
+  "D:/Users/ELLIOT/Dissertation/results/objects/xen1_rois_cortex_F.rds")
+```
+
+# Pipeline
+```{r}
+settings <- list(
+  dataset = "xen1diet", # Seurat object containing the dataset; must be pre-loaded
+  region = "vessels",
+  rois = "xen1diet_rois_vessels_F",
+  
+  # For xen1 comparisons
+  sex = "F",
+  variable = "Timepoint",
+  comparisons = c("wk2", "wk4", "wk12"),
+  
+  # For xen2 comparisons
+  # variable = "Genotype",
+  # comparison = c("wildType","knockOut"),
+  
+  fdr_cutoff = 0.05, # Adjusted P-value (FDR) cut-off
+  logfc_cutoff = 1, # LogFC cut-off
+  n_labels = 10, # Top DGEs
+  
+  assay = "Xenium",
+  layer = "counts",
+
+  go_ontology = "BP",
+  go_p_cutoff = 0.05,
+  go_n_terms = 15 # Top GO terms
+)
+
+# =========================
+# Preparation
+# =========================
+
+# Load modules
+library(Seurat)
+library(edgeR)
+library(ggplot2)
+library(dplyr)
+library(Matrix)
+library(pheatmap)
+library(readxl)
+library(ggrepel)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(GO.db)
+library(enrichplot) 
+library(stringr)
+
+source("scripts/functions.R")
+source("scripts/config.R")
+
+# Set Seurat object and metadata to be used
+config <- dataset_lookup[[settings$dataset]]
+
+# Build pseudobulks from ROIs
+rois <- get(settings$rois)
+
+pb <- build_pseudobulk_celltype(
+  rois,
+  config$metadata
+)
+
+counts <- pb$counts
+metadata <- pb$metadata
+
+de_results <- list()
+
+# DE for each Broad Type
+for (broad in unique(metadata$broad_type)) {
+  
+  message("Running broad type: ", broad)
+
+  # Metadata for specific cell_type alone
+  metadata_ct <- subset(
+    metadata,
+    broad_type == broad
+  )
+  
+  # Skip if too few pseudobulks
+  if (nrow(metadata_ct) < 4) {
+    message("Skipping ", broad, ": fewer than 4 ROI pseudobulks.")
+    next
+  }
+  
+  # Need two groups to compare
+  if (length(unique(metadata_ct[[settings$variable]])) < 2)
+  next
+  
+  # Counts for specific cell_type alone
+  counts_ct <- counts[
+    ,
+    metadata_ct$Sample,
+    drop = FALSE
+  ]
+  
+  # Need at least two replicates per group
+  if (any(counts_per_group < 2)) {
+    message("Skipping", broad, ": fewer than two replicates.")
+    next
+  }
+  
+  dge <- DGEList(
+    counts = counts_ct,
+    samples = metadata_ct
+  )
+  
+  keep <- filterByExpr(
+    dge,
+    group = metadata_ct[[settings$variable]]
+  )
+
+  dge <- dge[
+    keep,
+    ,
+    keep.lib.sizes = FALSE
+    ]
+  
+  # Skip if not enough genes
+  if (nrow(dge) < 10) {
+    message("Skipping", broad, ": too few expressed genes.")
+    next
+  }
+  
+  # Normalise
+  dge <- calcNormFactors(dge)
+  
+  # Ensure factorisation
+  metadata_ct[[settings$variable]] <- factor(
+    metadata_ct[[settings$variable]]
+  )
+
+  # Need at least 2 samples per timepoint
+  counts_per_group <- table(metadata_ct[[settings$variable]])
+  
+  print(counts_per_group)
+  
+  # Design matrix for edgeR
+  formula <- as.formula(
+    paste("~", settings$variable)
+  )
+
+  design <- model.matrix(
+    formula,
+    data = metadata_ct
+  )
+  
+  cat("Samples", ncol(dge), "\n")
+  cat("Genes", nrow(dge), "\n")
+  
+  # Estimate dispersal
+  dge <- estimateDisp(
+    dge,
+    design,
+    robust = TRUE
+  )
+  
+  # Fit model
+  fit <- glmQLFit(
+    dge,
+    design,
+    robust = TRUE
+  )
+  
+  # Set naming convention
+  reference <- levels(metadata_ct[[settings$variable]])[1]
+  
+  # Run DE for each listed comparison
+  for (comp in settings$comparisons) {
+  
+    coef_name <- paste0(
+      settings$variable,
+      comp
+    )
+    
+    # If coef is not present
+    if (!coef_name %in% (colnames(design))) {
+      message(
+        "Skipping:",
+        broad, " ", 
+        comp, 
+        " (coefficient not present)")
+        next
+    }
+  
+    comparison_name <- paste0(
+      broad, "_",
+      paste0(
+        comp,
+        "_vs_",
+        reference
+      )
+    )
+  
+    de_results[[comparison_name]] <- run_de(
+      fit,
+      coef_name
+    )
+  }
+}
+
+go_results <- list()
+
+for (name in names(de_results)) {
+  
+  sig_go <- subset(
+    de_results[[name]],
+    FDR < settings$fdr_cutoff
+  )
+  
+  up_genes <- rownames(
+    subset(sig_go, logFC > 0)
+  )
+  
+  down_genes <- rownames(
+    subset(sig_go, logFC < 0)
+  )
+  
+  if (length(up_genes) >= 10) {
+    go_results[[paste0(name, "_up")]] <- run_go(up_genes)
+  } else {
+    go_results[[paste0(name, "_up")]] <- NULL
+  }
+ 
+  if (length(up_genes) >= 10) {
+    go_results[[paste0(name, "_down")]] <- run_go(down_genes)
+  } else {
+    go_results[[paste0(name, "_down")]] <- NULL
+  }
+  
+}
+
+# Save DE results
+sex_label <- if (!is.null(settings$sex)) {
+  paste0("_", settings$sex) # Add sex label if applicable
+} else {
+  ""
+}
+
+for (name in names(de_results)) {
+  
+  write.csv(
+    de_results[[name]],
+    file = file.path(
+      "results",
+      "broadtype_pseudobulk",
+      "DE tables",
+      paste0(
+        name, "_",
+        settings$dataset, "_",
+        settings$region, "_",
+        sex_label, "_",
+        "broadType_pseudobulk",
+        ".csv")
+    )
+  )
+}
+
+# Save significant genes only
+for (name in names(de_results)) {
+  
+  sig_genes <- subset(
+    de_results[[name]],
+    FDR < settings$fdr_cutoff,
+    abs(logFC) > settings$logfc_cutoff
+  )
+
+  write.csv(
+    sig_genes,
+    file = file.path(
+      "results",
+      "broadtype_pseudobulk",
+      "DE tables",
+      paste0(
+        name, "_",
+        settings$dataset, "_",
+        settings$region,
+        sex_label, "_",
+        "broadType_pseudobulk",
+        "_sig.csv") 
+      
+      # Ex: "wk2_vs_wk1_xen1_cortex_F_sig.csv" OR "WT_vs_KO_xen2_cortex_sig.csv"
+    )
+  )
+}
+
+# Save volcano plots
+for (name in names(de_results)) {
+  
+  # Get DE table
+  df <- de_results[[name]]
+  
+  # Set significance
+  df$Significance <- "Not significant"
+  
+  df$Significance[
+    df$FDR < settings$fdr_cutoff & df$logFC > settings$logfc_cutoff
+  ] <- "Up"
+  
+  df$Significance[
+    df$FDR < settings$fdr_cutoff & df$logFC < -settings$logfc_cutoff
+  ] <- "Down"
+
+  # Significant genes only
+  sig_genes <- subset(
+    df,
+    FDR < settings$fdr_cutoff &
+      abs(logFC) > settings$logfc_cutoff
+  )
+  
+  # Top genes to label
+  if (nrow(sig_genes) > 0) {
+    
+  n_labels <- min(
+    settings$n_labels,
+    nrow(sig_genes)
+  )
+  
+  top_sig <- sig_genes[
+    order(sig_genes$FDR),
+    ,
+    drop = FALSE
+  ]
+  
+  top_sig <- top_sig[
+    seq_len(n_labels),
+    ,
+    drop = FALSE
+  ]
+  
+  } else {
+  
+    top_sig <- NULL
+}
+  
+  # Construct plot
+  p_volcano <- ggplot(
+    df,
+    aes(
+      x = logFC,
+      y = -log10(FDR),
+      color = Significance
+    )
+  ) +
+  
+    geom_point(alpha = 0.7) +
+    
+    scale_color_manual(
+      values = c(
+        "Up" = "red",
+        "Down" = "blue",
+        "Not significant" = "grey"
+      )
+    ) +
+  
+    geom_vline(
+      xintercept = c(-1, 1),
+      linetype = 2
+    ) +
+  
+    geom_hline(
+      yintercept = -log10(0.05),
+      linetype = 2
+    ) + 
+
+    labs(
+      title = name,
+      x = "log2 Fold Change",
+      y = "-log10 FDR"
+    ) +
+      theme_minimal()
+  
+  # Add labels to significant genes
+  if (!is.null(top_sig)) {
+    
+    top_sig <- cbind(
+      top_sig,
+      Gene = rownames(top_sig)
+    )
+    
+    p_volcano <- p_volcano +
+      geom_text_repel(
+        data = top_sig,
+        aes(
+          x = logFC,
+          y = -log10(FDR),
+          label = Gene
+        ),
+        
+        inherit.aes = FALSE,
+        size = 3,
+        max.overlaps = Inf
+      )
+  }
+  
+  ggsave(
+    filename = file.path(
+      "results",
+      "broadtype_pseudobulk",
+      "figures",
+      "DE",
+      paste0(
+        name, "_",
+        settings$dataset, "_",
+        settings$region,
+        sex_label, "_",
+        "broadType_pseudobulk",
+        "_volcano.png"
+      )
+    ),
+    
+    plot = p_volcano,
+    width = 6,
+    height = 5,
+  )
+}
+
+# Save GO analysis
+for (name in names(go_results)) {
+  
+  write.csv(
+    as.data.frame(go_results[[name]]),
+    file.path(
+      "results",
+      "broadtype_pseudobulk",
+      "GO tables",
+      paste0(
+        name, 
+        settings$dataset, "_",
+        settings$region, "_",
+        sex_label, "_",
+        "broadType_pseudobulk",
+        "_GO.csv")
+    ),
+    row.names = FALSE
+  )
+  
+  p_go <- enrichplot::dotplot(
+    go_results[[name]],
+    showCategory = settings$go_n_terms
+  ) +
+    scale_y_discrete(
+      labels= \(x) str_wrap (x, width = 25)
+    )
+  
+ggsave(
+  filename = file.path(
+    "results",
+    "broadtype_pseudobulk",
+    "figures",
+    "GO",
+    paste0(
+      name, "_",
+      settings$dataset, "_",
+      settings$region,
+      sex_label, "_",
+      "broadType_pseudobulk",
+      "_GO.png"
+    )
+  ),
+  
+  plot = p_go,
+  width = 10,
+  height = 7,
+  dpi = 300
+)
+
+}
+
+```
+
+
