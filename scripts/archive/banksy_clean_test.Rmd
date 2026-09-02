@@ -1,0 +1,226 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load Data
+```{r}
+xenium_clean <- readRDS("results/objects/xen1_clean_bytimepoint_fixed.rds")
+```
+
+# Load dependencies
+```{r}
+library(Banksy)
+library(Seurat)
+library(SeuratData)
+library(SeuratWrappers)
+
+library(ggplot2)
+library(gridExtra)
+library(pals)
+
+library(SummarizedExperiment)
+library(SpatialExperiment)
+library(scuttle)
+
+library(scater)
+library(cowplot)
+
+options(future.globals.maxSize = +Inf)  # Remove limit entirely
+
+# Kelly palette for visualization
+mypal <- kelly()[-1]
+```
+
+# Fix zgeMatrix error
+```{r}
+# install development version of Matrix by cloning Git repository and install from source in terminal:
+# $ git clone https://codeberg.org/jaganmn/Matrix.git
+# $ R CMD build Matrix && R CMD INSTALL Matrix_1.8-0.tar.gz
+
+# Matrix v. 1.8.0 
+
+```
+
+# Run cleaned BANKSY
+```{r}
+xenium_clean_banksy <- RunBanksy(
+  xenium_clean,
+  lambda = 0.05,
+  assay = "XeniumClean",
+  slot = "data",
+  dimx = "xenium_x",
+  dimy = "xenium_y",
+  features = "all",
+  use_agf = TRUE,
+  group = "sample_id",
+  split.scale = TRUE,
+  k_geom = 15
+)
+```
+
+# Run dimensionality reduction
+```{r}
+xenium_clean_banksy <- RunPCA(xenium_clean_banksy, assay = "BANKSY", features = rownames(xenium_clean_banksy), npcs = 30)
+
+xenium_clean_banksy <- RunUMAP(xenium_clean_banksy, dims = 1:30)
+
+xenium_clean_banksy <- FindNeighbors(xenium_clean_banksy, dims = 1:30)
+```
+
+# Save unclustered object
+```{r}
+saveRDS(
+  xenium_clean_banksy,
+  file = "results/objects/xenium_clean_banksy_unclustered.rds")
+```
+
+# Find BANKSY clusters
+```{r}
+xenium_clean_banksy_res1.5 <- FindClusters(xenium_clean_banksy, resolution = 1.5) # 57 clusters
+
+xenium_clean_banksy_res_1.8 <- FindClusters(xenium_clean_banksy, resolution = 1.8) # 63 clusters
+
+xenium_clean_banksy_res1.9 <- FindClusters(xenium_clean_banksy, resolution = 1.9) # 70 clusters, 1.8 gives 63 clusters
+```
+
+# Save clustered object
+```{r}
+saveRDS(
+  xenium_clean_banksy_res1_5,
+  file = "results/objects/xenium_clean_banksy_res1_5.rds"
+)
+
+saveRDS(
+  xenium_clean_banksy_res1_9,
+  file = "results/objects/xenium_clean_banksy_res1_9.rds"
+)
+```
+
+```{r}
+umap_xen1_clean_banksy_1.5 <- DimPlot(
+  xenium_clean_banksy_res1_5,
+  reduction = "umap",
+  label = TRUE,
+  repel = TRUE,
+  raster = TRUE,
+  label.size = 3,
+) + NoLegend()
+```
+
+# Save UMAPs
+```{r}
+ggsave(
+  filename = "results/UMAPS/umap_xen1_clean_banksy_res_1.5.pdf",
+  plot = umap_xen1_clean_banksy_1.5,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+
+ggsave(
+  filename = "results/UMAPS/umap_xen1_clean_banksy_res)1.9.pdf",
+  plot = umap_xen1_clean_banksy_1.9,
+  width = 14,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+# DEG analysis
+```{r}
+DefaultAssay(xenium_clean_banksy_res1_5) <- "XeniumClean"
+
+set.seed(123)
+
+banksy_markers <- FindAllMarkers(
+  xenium_clean_banksy_res1_5,
+  assay = "XeniumClean",
+  slot = "data",
+  only.pos = TRUE,
+  min.pct = 0.10,
+  logfc.threshold = 0.25,
+  test.use = "wilcox",
+  max.cells.per.ident = 5000,
+  verbose = TRUE
+)
+
+```
+
+# Filter for significantly expressed
+```{r}
+banksy_markers_sig <- banksy_markers |>
+  dplyr::filter(
+    p_val_adj < 0.05,
+    avg_log2FC > 0.25
+  )
+```
+
+# Save DEGs
+```{r}
+dir.create(
+  "results/BANKSY_DEG",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+banksy_markers <- banksy_markers |>
+  dplyr::select(gene, dplyr::everything())
+
+write.csv(
+  banksy_markers,
+  "results/BANKSY_DEG/BANKSY_res1_5_all_markers.csv",
+  row.names = FALSE
+)
+```
+
+```{r}
+banksy_markers_sig <- banksy_markers |>
+  dplyr::filter(
+    p_val_adj < 0.05,
+    avg_log2FC > 0.25
+  ) |>
+  dplyr::select(gene, dplyr::everything())
+
+write.csv(
+  banksy_markers_sig,
+  "results/BANKSY_DEG/BANKSY_res1_5_significant_markers.csv",
+  row.names = FALSE
+)
+```
+
+
+```{r}
+top_markers <- banksy_markers_sig |>
+  dplyr::group_by(cluster) |>
+  dplyr::slice_max(
+    order_by = avg_log2FC,
+    n = 20,
+    with_ties = FALSE
+  ) |>
+  dplyr::ungroup() |>
+  dplyr::select(gene, dplyr::everything())
+
+write.csv(
+  top_markers,
+  "results/BANKSY_DEG/BANKSY_res1_5_top20_markers_per_cluster.csv",
+  row.names = FALSE
+)
+```
+
+# Export BANKSY cluster assignments
+```{r}
+banksy_cluster_export <- data.frame(
+  cell_id = colnames(xenium_clean_banksy_res1_5),
+  cluster = Idents(xenium_clean_banksy_res1_5)
+)
+
+write.csv(
+  banksy_cluster_export,
+  file = "results/BANKSY_DEG/BANKSY_res1_5_cell_clusters.csv",
+  row.names = FALSE
+)
+```

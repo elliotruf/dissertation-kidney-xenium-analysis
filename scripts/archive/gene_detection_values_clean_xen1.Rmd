@@ -1,0 +1,570 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+xenium_clean <- readRDS("results/objects/xen1_clean_bytimepoint_fixed.rds")
+```
+
+```{r}
+xenium_genes <- rownames(xenium_clean[["XeniumClean"]])
+```
+
+```{r}
+dir.create(
+  "results/Xenium_clean/gene_detection_fine_celltypes",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  "results/Xenium_clean/gene_detection_broad_celltypes",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  "results/Xenium_clean/gene_detection_unmapped",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  "results/scRNAseq/gene_detection_shared",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+```
+
+```{r}
+export_gene_detection <- function(
+    seurat_obj,
+    cell_type,
+    genes,
+    output_file,
+    cell_type_column = "cell_type",
+    assay = "XeniumClean"
+) {
+  
+  meta <- seurat_obj[[]]
+  
+  cells <- rownames(meta)[
+    !is.na(meta[[cell_type_column]]) &
+    meta[[cell_type_column]] == cell_type
+  ]
+  
+  counts <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "counts"
+  )[, cells, drop = FALSE]
+  
+  panel_genes <- intersect(
+    genes,
+    rownames(counts)
+  )
+  
+  counts <- counts[
+    panel_genes,
+    ,
+    drop = FALSE
+  ]
+  
+  detected_cells <- Matrix::rowSums(counts > 0)
+  total_cells <- ncol(counts)
+  
+  results <- data.frame(
+    Cell_Type = cell_type,
+    Gene = names(detected_cells),
+    Detected_Cells = as.integer(detected_cells),
+    Total_Cells = total_cells,
+    Detection_Frequency =
+      as.numeric(detected_cells) / total_cells,
+    Detection_Percent =
+      as.numeric(detected_cells) / total_cells * 100
+  )
+  
+  results$Category <- dplyr::case_when(
+    results$Detection_Frequency >= 0.10 ~ "Expressed",
+    results$Detection_Frequency < 0.05 ~ "Not-expressed",
+    TRUE ~ "Intermediate"
+  )
+  
+  results <- results[
+    order(-results$Detection_Frequency),
+    ,
+    drop = FALSE
+  ]
+  
+  write.csv(
+    results,
+    output_file,
+    row.names = FALSE
+  )
+  
+  results
+}
+```
+
+```{r}
+dir.create(
+  "Clean_Xen1_gene_detection_fine_celltypes",
+  showWarnings = FALSE
+)
+
+cell_types <- sort(
+  unique(xenium_clean$cell_type)
+)
+
+for (ct in cell_types) {
+  
+  if (is.na(ct)) next
+  
+  message(
+    "Processing ", ct,
+    ": ",
+    sum(xenium_clean$cell_type == ct, na.rm = TRUE),
+    " cells"
+  )
+  
+  safe_name <- gsub(
+    "[^A-Za-z0-9_]+",
+    "_",
+    ct
+  )
+  
+  export_gene_detection(
+    seurat_obj = xenium_clean,
+    cell_type = ct,
+    xenium_genes = xenium_genes,
+    output_file = file.path(
+  "results/Xenium_clean/gene_detection_fine_celltypes",
+  paste0(safe_name, "_gene_detection.csv")
+    ), 
+    cell_type_column = "cell_type",
+    assay = "XeniumClean"
+  )
+}
+```
+
+# Run for broad cell types
+```{r}
+xenium_clean$scRNAseq_broad_type <- dplyr::case_when(
+  
+  xenium_clean$cell_type == "PODO" ~ "Pod",
+  
+  xenium_clean$cell_type %in% c(
+    "PTS1_mat_C",
+    "PTS1_S2_mat_C_dim",
+    "PTS1_S2_male",
+    "PTS2_mat_male_dim",
+    "PTS2_S3_mat_dim",
+    "PTS2_S3_tran_4w",
+    "PTS2_S3_male_dim_1",
+    "PTS2_S3_male_dim_2",
+    "PTS3_mat_OM_fem_dim",
+    "PTS1_imm_C_1",
+    "PTS3_imm",
+    "PTS2_imm_C",
+    "PTS1_imm_C_2",
+    "PECs"
+  ) ~ "PT",
+  
+  xenium_clean$cell_type %in% c(
+    "DTL_ATL_imm_IM_P",
+    "DTL_mat_M",
+    "DTL_ATL _mat_P",
+    "DTL_mat_M_rays",
+    "ATL_DTL_P",
+    "ATL_imm_M_P"
+  ) ~ "Thin limb",
+  
+  xenium_clean$cell_type %in% c(
+    "TAL_mat_C_OM",
+    "TAL_imm_M_1",
+    "TAL_imm_M_2",
+    "TAL_imm_P",
+    "TAL_mat_M",
+    "TAL_ imm_C",
+    "TAL_mat_C",
+    "TAL_mat_OM"
+  ) ~ "TAL",
+  
+  xenium_clean$cell_type %in% c(
+    "DCT_mat_C",
+    "DCT_imm_C",
+    "DCT_C",
+    "DCT_CNT"
+  ) ~ "DCT",
+  
+  xenium_clean$cell_type %in% c(
+    "GEnC_gloms",
+    "ENDO_large_vessels"
+  ) ~ "Endothelium",
+  
+  xenium_clean$cell_type %in% c(
+    "MESANGIAL",
+    "VSMCs_small_vessels",
+    "VSMCs_large vessels",
+    "VSMCs_mature_M"
+  ) ~ "Glomerular",
+  
+  xenium_clean$cell_type %in% c(
+    "CD_PC_imm_CMP",
+    "CD_PC_mat_CM",
+    "CD_PC_mat_P",
+    "CD_IM_P",
+    "CD_IC_C",
+    "CD_imm_prolif"
+  ) ~ "Collecting duct",
+  
+  xenium_clean$cell_type %in% c(
+    "STROMA_mat_C",
+    "STROMA_imm_C_1",
+    "STROMA_imm_IM_GS1",
+    "STROMA_imm_IMOM_GS1",
+    "STROMA_imm_C_2",
+    "STROMA_mat_IM",
+    "STROMA_imm_OM_GS1",
+    "STROMA_cap_perivasc",
+    "STROMA_P",
+    "STROMA_mat_OM",
+    "STROMA_imm_IM",
+    "STROMA_ENDO_mat_M",
+    "ENDO_STROMA_mat_OM",
+    "STROMA_prolif"
+  ) ~ "Stroma",
+  
+  xenium_clean$cell_type %in% c(
+    "IMMUNE_1_mat_C",
+    "IMMUNE_2_macro",
+    "IMMUNE_2"
+  ) ~ "Immune",
+  
+  xenium_clean$cell_type %in% c(
+    "UROTHELIUM_1",
+    "UROTHELIUM_2"
+  ) ~ "Urothelium",
+  
+  TRUE ~ NA_character_
+)
+```
+
+```{r}
+# Create output directory
+dir.create(
+  "Clean_Xen1_gene_detection_broad_celltypes",
+  showWarnings = FALSE
+)
+
+# Get the 11 scRNA-seq broad cell types
+broad_types <- sort(
+  unique(xenium_clean$scRNAseq_broad_type)
+)
+
+# Export gene detection for each broad cell type
+for (bt in broad_types) {
+  
+  if (is.na(bt)) next
+  
+  message(
+    "Processing ", bt,
+    ": ",
+    sum(xenium_clean$scRNAseq_broad_type == bt, na.rm = TRUE),
+    " cells"
+  )
+  
+  safe_name <- gsub(
+    "[^A-Za-z0-9_]+",
+    "_",
+    bt
+  )
+  
+  export_gene_detection(
+    seurat_obj = xenium_clean,
+    cell_type = bt,
+    xenium_genes = xenium_genes,
+    output_file = file.path(
+  "results/Xenium_clean/gene_detection_broad_celltypes",
+  paste0(safe_name, "_gene_detection.csv")
+    ),
+    cell_type_column = "scRNAseq_broad_type",
+    assay = "XeniumClean"
+  )
+}
+```
+
+```{r}
+# Gene detection for unmapped Xenium populations
+
+dir.create(
+  "Clean_Xen1_gene_detection_unmapped",
+  showWarnings = FALSE
+)
+
+# Identify Xenium cell types not mapped to a scRNA-seq broad type
+unmapped_types <- sort(unique(
+  xenium_clean$cell_type[
+    is.na(xenium_clean$scRNAseq_broad_type)
+  ]
+))
+
+unmapped_types
+
+for (ct in unmapped_types) {
+  
+  message(
+    "Processing unmapped type ", ct, ": ",
+    sum(
+      xenium_clean$cell_type == ct,
+      na.rm = TRUE
+    ),
+    " cells"
+  )
+  
+  safe_name <- gsub(
+    "[^A-Za-z0-9_]+",
+    "_",
+    ct
+  )
+  
+  export_gene_detection(
+    seurat_obj = xenium_clean,
+    cell_type = ct,
+    xenium_genes = xenium_genes,
+    output_file = file.path(
+  "results/Xenium_clean/gene_detection_unmapped",
+  paste0(safe_name, "_gene_detection.csv")
+    ),
+    cell_type_column = "cell_type",
+    assay = "XeniumClean"
+  )
+}
+```
+
+```{r}
+scrna_broad_mapping <- c(
+  "Pod" = "Pod",
+  
+  "PT_Immature" = "PT",
+  "PTS1" = "PT",
+  "PTS1S2" = "PT",
+  "PTS2" = "PT",
+  "PTS2S3" = "PT",
+  "PTS3" = "PT",
+  "Prolif_PT" = "PT",
+  "NewPT2_PEC" = "PT",
+  
+  "TAL" = "TAL",
+  "Prolif_TAL" = "TAL",
+  
+  "DTL" = "Thin limb",
+  "ATL" = "Thin limb",
+  
+  "DCT1" = "DCT",
+  "DCT2" = "DCT",
+  "Prolif_DT" = "DCT",
+  
+  "CNT" = "Collecting duct",
+  "PC_OMCD" = "Collecting duct",
+  "PC_IMCD" = "Collecting duct",
+  "IC_A" = "Collecting duct",
+  "IC_B" = "Collecting duct",
+  
+  "EC" = "Endothelium",
+  "Prolif_EC" = "Endothelium",
+  
+  "MC" = "Glomerular",
+  "JGC" = "Glomerular",
+  
+  "Fib" = "Stroma",
+  "Prolif_Fib" = "Stroma",
+  
+  "Immune" = "Immune",
+  "Prolif_Immune" = "Immune",
+  
+  "Uro" = "Urothelium"
+)
+
+reference$scRNAseq_broad_type <- unname(
+  scrna_broad_mapping[
+    as.character(reference$cell_type)
+  ]
+)
+```
+
+```{r}
+# Genes in scRNA-seq reference
+scRNA_genes <- rownames(reference[["RNA"]])
+
+# Original Xenium gene panel
+xenium_genes <- rownames(xenium_clean[["Xenium"]])
+
+# Genes shared between scRNA-seq and Xenium
+shared_genes <- intersect(
+  scRNA_genes,
+  xenium_genes
+)
+
+length(shared_genes)
+```
+
+```{r}
+scrna_counts <- GetAssayData(
+  reference,
+  assay = "RNA",
+  layer = "counts"
+)
+```
+
+# ScRNAseq broad
+```{r}
+reference <- JoinLayers(
+  reference,
+  assay = "RNA"
+)
+
+# Get counts from the scRNA-seq reference
+reference_counts <- GetAssayData(
+  reference,
+  assay = "RNA",
+  layer = "counts"
+)
+
+# Get data from the scRNA-seq reference
+reference_data <- GetAssayData(
+  reference,
+  assay = "RNA",
+  layer = "data"
+)
+
+# Output directory
+dir.create(
+  "results/scRNAseq/gene_detection_shared/broad",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+# Broad cell types
+broad_types <- sort(
+  unique(reference$scRNAseq_broad_type)
+)
+
+# Run detection analysis
+for (bt in broad_types) {
+  
+  if (is.na(bt)) next
+  
+  message(
+    "Processing ", bt, ": ",
+    sum(reference$scRNAseq_broad_type == bt, na.rm = TRUE),
+    " cells"
+  )
+  
+  cells <- rownames(reference[[]])[
+    reference$scRNAseq_broad_type == bt
+  ]
+  
+  # Make sure cells exist in the counts matrix
+  cells <- intersect(
+    cells,
+    colnames(reference_counts)
+  )
+  
+  # Keep only the shared Xenium/scRNA-seq genes
+  genes <- intersect(
+    shared_genes,
+    rownames(reference_counts)
+  )
+  
+  message("Cells retained: ", length(cells))
+  message("Shared genes: ", length(genes))
+  
+  if (length(cells) == 0 || length(genes) == 0) {
+    warning("Skipping ", bt)
+    next
+  }
+  
+  counts <- reference_counts[
+    genes,
+    cells,
+    drop = FALSE
+  ]
+  
+  # Number of cells in which each gene is detected
+  detected_cells <- Matrix::rowSums(counts > 0)
+  total_cells <- ncol(counts)
+  
+  # Mean raw count
+  mean_raw_count <- Matrix::rowMeans(counts)
+  
+  # Average normalised expression
+  expression <- reference_data[
+    genes,
+    cells,
+    drop = FALSE
+  ]
+
+  average_expression <- Matrix::rowMeans(expression)
+  
+  message(
+  "BT = ", bt,
+  " | metadata cells = ", length(cells),
+  " | matrix cells = ", ncol(counts),
+  " | max detected = ", max(detected_cells)
+)
+  
+  results <- data.frame(
+    Broad_Type = bt,
+    Gene = names(detected_cells),
+    Detected_Cells = as.integer(detected_cells),
+    Total_Cells = total_cells,
+    Detection_Frequency =
+      as.numeric(detected_cells) / total_cells,
+    Detection_Percent =
+      as.numeric(detected_cells) / total_cells * 100,
+    Mean_Raw_Count =
+    as.numeric(mean_raw_count),
+    Average_Expression = 
+      as.numeric(average_expression)
+  )
+  
+  # Categorise genes using the XeniumClean thresholds
+  results$Category <- dplyr::case_when(
+    results$Detection_Frequency >= 0.10 ~ "Expressed",
+    results$Detection_Frequency < 0.05 ~ "Not Expressed",
+    TRUE ~ "Intermediate"
+  )
+  
+  # Sort by detection frequency
+  results <- results[
+    order(-results$Detection_Frequency),
+    ,
+    drop = FALSE
+  ]
+  
+  # Safe filename
+  safe_name <- gsub(
+    "[^A-Za-z0-9_]+",
+    "_",
+    bt
+  )
+  
+  # Save
+  write.csv(
+    results,
+    file.path(
+      "results/Xenium_clean/Xen1_scRNA-seq_gene_detection_broad_celltypes",
+      paste0(
+        "Xen1_scRNA-seq_",
+        safe_name,
+        "_gene_detection.csv"
+      )
+    ),
+    row.names = FALSE
+  )
+}
+```

@@ -1,0 +1,230 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+# R Notebook for generating gene detection values
+# according to XeniumClean's expression/non-expression threholds
+
+# Custom function
+```{r}
+export_gene_detection <- function(
+    seurat_obj,
+    cell_type_column,
+    assay,
+    genes,
+    output_dir,
+    filename_prefix
+) {
+
+  # Get raw counts and normalised expression
+  counts <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "counts"
+  )
+
+  expression <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "data"
+  )
+
+  dir.create(
+    output_dir,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
+
+  cell_types <- sort(
+    unique(seurat_obj[[cell_type_column]][, 1])
+  )
+
+  for (cell_type in cell_types) {
+
+    if (is.na(cell_type)) next
+
+    message("Processing: ", cell_type)
+
+    cells <- rownames(seurat_obj[[]])[
+      seurat_obj[[cell_type_column]][, 1] == cell_type
+    ]
+
+    cells <- intersect(
+      cells,
+      colnames(counts)
+    )
+
+    panel_genes <- intersect(
+      genes,
+      rownames(counts)
+    )
+
+    if (length(cells) == 0 || length(panel_genes) == 0) {
+      warning("Skipping ", cell_type)
+      next
+    }
+
+    counts_sub <- counts[
+      panel_genes,
+      cells,
+      drop = FALSE
+    ]
+
+    expression_sub <- expression[
+      panel_genes,
+      cells,
+      drop = FALSE
+    ]
+
+    # Detection
+    detected_cells <- Matrix::rowSums(
+      counts_sub > 0
+    )
+
+    total_cells <- ncol(counts_sub)
+
+    detection_frequency <-
+      detected_cells / total_cells
+
+    # Mean normalised expression
+    average_expression <-
+      Matrix::rowMeans(expression_sub)
+
+    results <- data.frame(
+      Cell_Type = cell_type,
+      Gene = names(detected_cells),
+      Detected_Cells = as.integer(detected_cells),
+      Total_Cells = total_cells,
+      Detection_Frequency =
+        as.numeric(detection_frequency),
+      Detection_Percent =
+        as.numeric(detection_frequency * 100),
+      Mean_Normalised_Expression =
+        as.numeric(average_expression)
+    )
+
+    results$Category <- dplyr::case_when(
+      results$Detection_Frequency >= 0.10 ~
+        "Expressed",
+      results$Detection_Frequency < 0.05 ~
+        "Not Expressed",
+      TRUE ~
+        "Intermediate"
+    )
+
+    results <- results[
+      order(-results$Detection_Frequency),
+      ,
+      drop = FALSE
+    ]
+
+    safe_name <- gsub(
+      "[^A-Za-z0-9_]+",
+      "_",
+      cell_type
+    )
+
+    write.csv(
+      results,
+      file.path(
+        output_dir,
+        paste0(
+          filename_prefix,
+          safe_name,
+          "_gene_detection.csv"
+        )
+      ),
+      row.names = FALSE
+    )
+  }
+}
+```
+
+# ScRNA-seq broad
+```{r}
+export_gene_detection(
+  seurat_obj = reference,
+  cell_type_column = "scRNAseq_broad_type",
+  assay = "RNA",
+  genes = shared_genes,
+  output_dir =
+    "results/Xenium_clean/Xen1_scRNAseq_gene_detection_broad_celltypes_avg_exp",
+  filename_prefix = "Xen1_scRNA-seq_"
+)
+```
+
+# ScRNA-seq fine
+```{r}
+export_gene_detection(
+  seurat_obj = reference,
+  cell_type_column = "cell_type",
+  assay = "RNA",
+  genes = shared_genes,
+  output_dir =
+    "results/Xenium_clean/Xen1_scRNAseq_gene_detection_fine_celltypes_avg_exp",
+  filename_prefix = "Xen1_scRNA-seq_"
+)
+```
+
+# Xenium broad celltype mapping
+```{r}
+xenium_clean$scRNAseq_broad_type <- dplyr::case_when(
+  xenium_clean$predicted.id %in% c("Pod") ~ "Pod",
+  xenium_clean$predicted.id %in% c("MC", "JGC") ~ "Glomerular",
+  xenium_clean$predicted.id %in% c(
+    "PT_Immature","PTS1","PTS1S2","PTS2",
+    "PTS2S3","PTS3","Prolif_PT","NewPT2_PEC"
+  ) ~ "PT",
+  xenium_clean$predicted.id %in% c(
+    "TAL","Prolif_TAL","TAL_DCT"
+  ) ~ "TAL",
+  xenium_clean$predicted.id %in% c("DTL","ATL") ~ "Thin limb",
+  xenium_clean$predicted.id %in% c(
+    "DCT1","DCT2","CNT","Prolif_DT"
+  ) ~ "DCT",
+  xenium_clean$predicted.id %in% c(
+    "PC_OMCD","PC_IMCD","IC_A","IC_B"
+  ) ~ "Collecting duct",
+  xenium_clean$predicted.id %in% c(
+    "EC","Prolif_EC"
+  ) ~ "Endothelium",
+  xenium_clean$predicted.id %in% c(
+    "Fib","Prolif_Fib"
+  ) ~ "Stroma",
+  xenium_clean$predicted.id %in% c(
+    "Immune","Prolif_Immune"
+  ) ~ "Immune",
+  xenium_clean$predicted.id %in% c("Uro") ~ "Urothelium",
+  TRUE ~ NA_character_
+)
+
+```
+
+# Xenium_clean broad
+```{r}
+export_gene_detection(
+  seurat_obj = xenium_clean,
+  cell_type_column = "scRNAseq_broad_type",
+  assay = "XeniumClean",
+  genes = shared_genes,
+  output_dir =
+    "results/Xenium_clean/Clean_Xen1_gene_detection_broad_celltypes_avg_exp",
+  filename_prefix = "Xen1_Xenium_"
+)
+
+```
+
+# Xenium_clean fine
+```{R}
+export_gene_detection(
+  seurat_obj = xenium_clean,
+  cell_type_column = "cell_type",
+  assay = "XeniumClean",
+  genes = shared_genes,
+  output_dir =
+    "results/Xenium_clean/Clean_Xen1_gene_detection_fine_celltypes_avg_exp",
+  filename_prefix = "Xen1_Xenium_"
+)
+```

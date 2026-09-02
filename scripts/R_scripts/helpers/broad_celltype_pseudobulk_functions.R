@@ -2,35 +2,6 @@
 # Functions for ROI_broad_celltype_pseudobulk analysis
 # ======================================================
 
-# ====================================
-# Function 1: Assign Broad Celltypes
-# ====================================
-# Add column to object metadata assigning
-# broad celltypes based on fine celltypes
-
-assign_broad_celltypes <- function(cell_type) {
-  
-  dplyr::case_when(
-    grepl("^PTS", cell_type) ~ "PT",
-    grepl("^TAL", cell_type) ~ "TAL",
-    grepl("^ATL|^DTL", cell_type) ~ "Thin limb",
-    grepl("^CD", cell_type) ~ "Collecting duct",
-    grepl("^DCT", cell_type) ~ "DCT",
-    grepl("^STROMA", cell_type) ~ "Stroma",
-    grepl("^ENDO", cell_type) ~ "Endothelium",
-    grepl("^GEnC", cell_type) ~ "Endothelium",
-    grepl("^VSMC", cell_type) ~ "Vascular",
-    grepl("^IMMUNE", cell_type) ~ "Immune",
-    grepl("^MESANGIAL", cell_type) ~ "Glomerular",
-    grepl("^PODO", cell_type) ~ "Glomerular",
-    grepl("^PEC", cell_type) ~ "Glomerular",
-    grepl("^UROTHELIUM", cell_type) ~ "Urothelium",
-    grepl("^FAT", cell_type) ~ "Adipose",
-    grepl("^rare", cell_type) ~ "Rare",
-    TRUE ~ "Other"
-  )
-}
-
 # ==========================================
 # Function 2: Build Broadtype Pseudobulks
 # ==========================================

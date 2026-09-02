@@ -8,7 +8,7 @@
 # User Settings
 # ===================================
 
-EXPERIMENT = "Xen1diet"
+EXPERIMENT = "Xen1diet" # Experiment name for naming files
 DATA = "Xen1diet.h5ad"  # h5ad.py file to be prepared
 
 # ====================================

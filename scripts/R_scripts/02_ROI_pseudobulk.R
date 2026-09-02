@@ -8,12 +8,12 @@ settings <- list(
   roi_object = file.path(
     "results",
     "objects",
-    "Xen2_WT_Vessels_roi_objects.rds"
+    "Xen1_Female_Cortex_roi_objects.rds"
   ),
   
   # Differential expression
   variable = "time_point",
-  reference = "sham",
+  reference = "1wk",
   
   # edgeR
   assay = "Xenium",
@@ -55,6 +55,7 @@ source("scripts/R_scripts/helpers/output_functions_v3.R")
 # Load ROI objects
 # ===============================
 
+message("Loading ROI object...")
 rois <- readRDS(settings$roi_object)
 
 run_name <- get_roi_run_name(rois)
@@ -68,6 +69,7 @@ output_dirs <- make_output_dirs(
 # Build pseudobulks
 # ===============================
 
+message("Building pseudobulk...")
 pb <- build_pseudobulk(
   rois,
   assay = settings$assay,
@@ -91,6 +93,7 @@ comparisons <- metadata_info$comparisons
 # Perform Differential Expression Analysis
 # ==========================================
 
+message("Fitting edgeR model...")
 edgeR_model <- fit_edgeR(
   counts = counts,
   metadata = metadata,
@@ -103,6 +106,7 @@ reference <- levels(metadata[[settings$variable]])[1]
 
 de_results <- list()
 
+message("Running differential expression analysis...")
 for (comp in comparisons) {
   
   coef_name <- paste0(
@@ -127,8 +131,20 @@ for (comp in comparisons) {
 # Perform Gene Ontology Analysis
 # ===================================
 
+message("Running Gene Ontology analysis...")
+# Build Xenium panel gene universe
+xenium_universe <- rownames(
+  LayerData(
+    rois[[1]],
+    assay = settings$assay,
+    layer = settings$layer
+  )
+)
+
+# Run edgeR GO
 go_results <- run_go_edger_all(
-  de_results,
+  de_results = de_results,
+  universe = xenium_universe,
   fdr_cutoff = settings$fdr_cutoff,
   ontology = settings$go_ontology,
   p_cutoff = settings$go_p_cutoff,
@@ -137,11 +153,12 @@ go_results <- run_go_edger_all(
 
 print(names(go_results))
 
+message("Saving results...")
 # ==========================================
 # Save Differential Expression Results
 # ==========================================
 
-save_de_tables(
+save_de_tables_edgeR(
   de_results = de_results,
   output_dir = output_dirs$de_tables,
   settings = settings
@@ -151,7 +168,7 @@ save_de_tables(
 # Save Volcano Plots
 # ==========================================
 
-save_de_figures(
+save_de_figures_edgeR(
   de_results = de_results,
   output_dir = output_dirs$de_figures,
   settings = settings,
@@ -171,9 +188,12 @@ save_go_tables(
 # Save Gene Ontology Figures
 # ==========================================
 
-save_go_figures(
+save_go_figures_edgeR(
   go_results = go_results,
   output_dir = output_dirs$go_figures,
   settings = settings,
   run_name = run_name
 )
+
+# Done
+message("Done!")

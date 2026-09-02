@@ -10,24 +10,24 @@ settings <- list(
   # Experiment
   experiment = "xen1diet",
   
-  # Object to analyse
-  seurat_file = file.path(
+  # ROI object to analyse
+  seurat_obj = file.path(
     "data",
     "xen1diet.rds"
   ),
   
-  # condition column (sex, genotype, etc.)
-  condition = "sex",
-
   # Broad_celltype to analyse
   broad_celltype = "PT",
+  
+  # Condition column (sex, genotype, etc)
+  condition = "sex", 
   
   # Order of time points for display
   comparisons = c("1wk", "2wk", "4wk", "12wk")
   # comparisons = c("Naive", "24h", "7d", "14d", "28d")
-
-)
   
+)
+
 # =========================
 # Preparation
 # =========================
@@ -36,42 +36,19 @@ library(Seurat)
 library(ggplot2)
 library(scales)
 library(tidyverse)
-library(reader)
 
 source("scripts/R_scripts/helpers/project_paths_v3.R")
 source("scripts/R_scripts/helpers/celltype_functions_v3.R")
 source("scripts/R_scripts/helpers/plotting_functions_v3.R")
-source("scripts/R_scripts/helpers/output_functions_v3.R")
-
-# ==================
-# Output directories
-# ==================
-
-output_dirs <- list(
-  
-  tables = project_path(
-    "results",
-    "cell_composition",
-    "tables",
-    settings$experiment
-  ),
-  
-  figures = project_path(
-    "results",
-    "cell_composition",
-    "figures",
-    settings$experiment
-  )
-  
-)
 
 # =============================
 # Broad Cell Type Composition
 # =============================
 
-message("Loading object...")
-seurat_obj <- readRDS(project_path(settings$seurat_file))
+message("Loading data...")
+seurat_obj <- readRDS(project_path(settings$seurat_obj))
 
+message("Preparing object...")
 Idents(seurat_obj) <- "cell_type"
 
 seurat_obj <- add_broad_celltypes(seurat_obj)
@@ -85,17 +62,28 @@ meta$time_point <- factor(
 )
 
 # Subset to specified broad_celltype
-data_broad <- subset(
+plot_data_broad <- subset(
   meta,
   broad_celltype == settings$broad_celltype &
     !is.na(time_point)
 )
 
-message("Generating summaries...")
+p_celltypeComposition_broad <- plot_cell_composition_broad(plot_data_broad)
 
-# ============================================
-# Whole Object Cell Type Composition (Broad)
-# ============================================
+# ====================================
+# Whole Object Cell Type Composition
+# ====================================
+
+plot_data_whole <- subset(
+  meta,
+  !is.na(time_point)
+) 
+
+p_celltypeComposition_whole <- plot_cell_composition_whole(plot_data_whole)
+
+# ===============
+# Tables
+# ===============
 
 whole_summary <- summarise_whole_data(
   seurat_obj,
@@ -105,21 +93,9 @@ whole_summary <- summarise_whole_data(
   fine_col = "cell_type"
 )
 
-# ============
-# Plot
-# ============
-
-# Whole
-p_celltypeComposition_whole <- plot_cell_composition_whole(
-  whole_summary$whole_composition_broad
-)
-
-# Broad
-p_celltypeComposition_broad <- plot_cell_composition_whole(data_broad)
-
-# ==================
-# Save outputs
-# ===================
+# ===============
+# Save Outputs
+# ===============
 
 # Save tables
 message("Saving tables...")
@@ -127,12 +103,13 @@ save_composition_summary_tables(
   whole_summary,
   project_path(
     "results",
-    "whole_dataset_summary",
+    "cell_composition",
+    "tables",
     settings$experiment
   )
 )
 
-# Save plots
+# Save plots as pdf
 message("Saving plots...")
 ggsave(
   filename = file.path(
@@ -142,7 +119,7 @@ ggsave(
     paste0(
       settings$experiment, "_",
       settings$broad_celltype, "_",
-      "celltypeComposition.pdf"
+      "celltype_composition.pdf"
     )
   ),
   
@@ -159,11 +136,11 @@ ggsave(
     paste0(
       settings$experiment,
       "_Whole_",
-      "celltypeComposition.pdf"
+      "celltype_composition.pdf"
     )
   ),
   
-  plot = p_celltypeComposition_broad,
+  plot = p_celltypeComposition_whole,
   width = 6,
   height = 5
 )

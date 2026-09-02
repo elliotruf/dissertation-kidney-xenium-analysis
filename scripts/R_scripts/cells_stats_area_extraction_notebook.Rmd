@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# ROI area extraction
+```{r}
+folder <- "data/Xen2_ROIs/Xen2_KO_Vessels/28d"
+
+files <- list.files(
+  folder,
+  pattern = "_cells_stats\\.csv$",
+  full.names = TRUE
+)
+
+extract_area <- function(file) {
+  dat <- read.csv(
+    file,
+    header = FALSE,
+    stringsAsFactors = FALSE
+  )
+  
+  area_text <- dat[2, 1]
+  
+  # Extract number after ":"
+  area <- as.numeric(
+    sub(".*:\\s*", "", area_text)
+  )
+  
+  return(area)
+}
+
+results <- data.frame(
+  file = basename(files),
+  area_um2 = sapply(files, extract_area)
+)
+
+# View individual measurements
+print(results)
+
+# Calculate summary statistics
+mean_area <- mean(results$area_um2, na.rm = TRUE)
+sd_area <- sd(results$area_um2, na.rm = TRUE)
+
+cat("Number of samples:", nrow(results), "\n")
+cat("Mean tissue area:", sprintf("%.2f", mean_area), "µm²\n")
+cat("Standard deviation:", sprintf("%.2f", sd_area), "µm²\n")
+```

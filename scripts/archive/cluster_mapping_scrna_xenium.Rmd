@@ -1,0 +1,386 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Cluster mapping as defined by supervisor
+```{r}
+xenium_mapping <- list(
+  
+  # Pod
+  Pod = c(
+    "PODO"
+  ),
+  
+  # Endothelial
+  EC = c(
+    "GEnC_gloms",
+    "ENDO_large_vessels"
+  ),
+  
+  Prolif_EC = c(
+    "GEnC_gloms",
+    "ENDO_large_vessels"
+  ),
+  
+  # Mesangial
+  MC = c(
+    "MESANGIAL"
+  ),
+  
+  # JGC
+  JGC = c(
+    "MESANGIAL",
+    "VSMCs_small_vessels",
+    "VSMCs_large vessels",
+    "VSMCs_mature_M"
+  ),
+  
+  # PTs
+  PTS1 = c(
+    "PTS1_mat_C"
+  ),
+  
+  PTS1S2 = c(
+    "PTS1_S2_mat_C_dim",
+    "PTS1_S2_male"
+  ),
+  
+  PTS2 = c(
+    "PTS2_mat_male_dim"
+  ),
+  
+  PTS2S3 = c(
+    "PTS2_S3_mat_dim",
+    "PTS2_S3_tran_4w",
+    "PTS2_S3_male_dim_1",
+    "PTS2_S3_male_dim_2"
+  ),
+  
+  PTS3 = c(
+    "PTS3_mat_OM_fem_dim"
+  ),
+  
+  # Immature PTs
+  PT_Immature = c(
+    "PTS1_imm_C_1",
+    "PTS3_imm",
+    "PTS2_imm_C",
+    "PTS1_imm_C_2"
+  ),
+  
+  # PEC
+  PTdediff_PEC = c(
+    "PECs"
+  ),
+  
+  # DTL
+  DTL = c(
+    "DTL_ATL_imm_IM_P",
+    "DTL_mat_M",
+    "DTL_ATL _mat_P",
+    "DTL_mat_M_rays"
+  ),
+  
+  # ATL
+  ATL = c(
+    "ATL_DTL_P",
+    "ATL_imm_M_P"
+  ),
+  
+  # TAL
+  TAL = c(
+  "TAL_mat_C_OM",
+  "TAL_imm_M_1",
+  "TAL_imm_M_2",
+  "TAL_imm_P",
+  "TAL_mat_M",
+  "TAL_ imm_C",
+  "TAL_mat_C",
+  "TAL_mat_OM"
+  ),
+
+  # DCT
+  DCT1 = c(
+    "DCT_mat_C",
+    "DCT_imm_C",
+    "DCT_C"
+  ),
+  
+  DCT2 = c(
+    "DCT_mat_C",
+    "DCT_imm_C",
+    "DCT_C"
+  ),
+  
+  # CNT
+  CNT = c(
+    "DCT_CNT"
+  ),
+  
+  # Collecting duct
+  PC_OMCD = c(
+    "CD_PC_imm_CMP",
+    "CD_PC_mat_CM",
+    "CD_imm_prolif"
+  ),
+  
+  PC_IMCD = c(
+    "CD_PC_imm_CMP",
+    "CD_PC_mat_P",
+    "CD_IM_P",
+    "CD_imm_prolif"
+  ),
+  
+  IC_A = c(
+    "CD_IC_C",
+    "CD_imm_prolif"
+  ),
+  
+  IC_B = c(
+    "CD_IC_C",
+    "CD_imm_prolif"
+  ),
+  
+  # Urothelium
+  Uro = c(
+    "UROTHELIUM_1",
+    "UROTHELIUM_2"
+  ),
+  
+  # Fibroblast
+  Fib = c(
+    "STROMA_mat_C",
+    "STROMA_imm_C_1",
+    "STROMA_imm_IM_GS1",
+    "STROMA_imm_IMOM_GS1",
+    "STROMA_imm_C_2",
+    "STROMA_mat_IM",
+    "STROMA_imm_OM_GS1",
+    "STROMA_cap_perivasc",
+    "STROMA_P",
+    "STROMA_mat_OM",
+    "STROMA_imm_IM",
+    "STROMA_ENDO_mat_M",
+    "ENDO_STROMA_mat_OM"
+  ),
+  
+  Prolif_Fib = c(
+    "STROMA_prolif"
+  ),
+  
+  # Immune
+  Immune = c(
+    "IMMUNE_1_mat_C",
+    "IMMUNE_2_macro",
+    "IMMUNE_2"
+  ),
+  
+  Prolif_Immune = c(
+    "IMMUNE_1_mat_C",
+    "IMMUNE_2_macro",
+    "IMMUNE_2"
+  )
+)
+
+
+```
+
+# Apply Xenium mapping to XeniumCleaned Xen1 dataset
+```{r}
+annotations_df <- data.frame(
+  "Cell ID" = rownames(xenium_clean@meta.data)
+)
+
+annotations_df$Annotation <- sapply(
+  xenium_clean$cell_type,
+  function(xenium_type) {
+    
+    matching_types <- names(xenium_mapping)[
+      sapply(xenium_mapping, function(types) {
+        xenium_type %in% types
+      })
+    ]
+    
+    if (length(matching_types) == 0) {
+      "Unassigned"
+    } else {
+      paste(matching_types, collapse = "; ")
+    }
+  }
+)
+
+table(annotations_df$Annotation)
+
+table(annotations_df$Annotation == "Unassigned")
+
+
+```
+
+# Export for XeniumExplorer
+```{r}
+write.csv(
+  annotations_df,
+  "info/xenium_manual_scRNAseq_annotations.csv",
+  row.names = FALSE
+)
+
+```
+
+
+```{r}
+get_gene_detection <- function(
+    seurat_obj,
+    cell_type,
+    cell_type_column = "cell_type",
+    assay = NULL
+) {
+  
+  if (is.null(assay)) {
+    assay <- DefaultAssay(seurat_obj)
+  }
+  
+  cells <- WhichCells(
+    seurat_obj,
+    expression = .data[[cell_type_column]] == cell_type
+  )
+  
+  counts <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "counts"
+  )[, cells, drop = FALSE]
+  
+  Matrix::rowSums(counts > 0) / ncol(counts)
+}
+
+reference_types <- unique(reference$cell_type)
+
+gene_detection <- lapply(
+  reference_types,
+  function(ct) {
+    
+    detection <- get_gene_detection(
+      reference,
+      ct
+    )
+    
+    data.frame(
+      Gene = names(detection),
+      Cell_Type = ct,
+      Detection_Frequency = as.numeric(detection),
+      NotExpressed = detection < 0.05,
+      Expressed = detection >= 0.10
+    )
+  }
+)
+
+gene_detection_df <- dplyr::bind_rows(gene_detection)
+
+# Restrict to 480 gene Xenium panel
+gene_detection_panel <- gene_detection_df %>%
+  filter(Gene %in% xenium_genes)
+```
+
+# Investigate gene detection by cell type
+```{r}
+gene_detection_panel %>%
+  filter(
+    Cell_Type == "PTS1",
+    NotExpressed
+  )
+
+gene_detection_panel %>%
+  filter(
+    Cell_Type == "Fib",
+    NotExpressed
+  )
+```
+
+```{r}
+export_gene_detection <- function(
+    seurat_obj,
+    cell_type,
+    xenium_genes,
+    output_file,
+    cell_type_column = "cell_type",
+    assay = NULL
+) {
+  
+  if (is.null(assay)) {
+    assay <- DefaultAssay(seurat_obj)
+  }
+  
+  # Get cells belonging to this reference cell type
+  cells <- WhichCells(
+    seurat_obj,
+    expression = .data[[cell_type_column]] == cell_type
+  )
+  
+  # Get counts
+  counts <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "counts"
+  )[, cells, drop = FALSE]
+  
+  # Detection frequency
+  detection <- Matrix::rowSums(counts > 0) / ncol(counts)
+  
+  # Restrict to Xenium panel
+  detection <- detection[names(detection) %in% xenium_genes]
+  
+  # Make dataframe
+  results <- data.frame(
+  Gene = names(detection),
+  Detected_Cells = as.integer(Matrix::rowSums(counts > 0)[names(detection)]),
+  Total_Cells = ncol(counts),
+  Detection_Frequency = as.numeric(detection),
+  Detection_Percent = as.numeric(detection) * 100,
+  Category = dplyr::case_when(
+    detection < 0.05 ~ "NotExpressed",
+    detection >= 0.10 ~ "Expressed",
+    TRUE ~ "Intermediate"
+  )
+)
+
+  
+  # Sort by detection frequency
+  results <- results[
+    order(-results$Detection_Frequency),
+  ]
+  
+  # Export
+  write.csv(
+    results,
+    output_file,
+    row.names = FALSE
+  )
+  
+  return(results)
+}
+```
+
+# Export by cell type
+```{r}
+dir.create("Xenium_gene_detection", showWarnings = FALSE)
+
+reference_types <- unique(reference$cell_type)
+
+for (ct in reference_types) {
+  
+  safe_name <- gsub("[^A-Za-z0-9_]+", "_", ct)
+  
+  export_gene_detection(
+    reference,
+    cell_type = ct,
+    xenium_genes = xenium_genes,
+    output_file = file.path(
+      "Xenium_gene_detection",
+      paste0(safe_name, "_Xenium_gene_detection.csv")
+    )
+  )
+}
+```

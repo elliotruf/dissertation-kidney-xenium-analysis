@@ -1,0 +1,154 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Library
+```{r}
+library(Seurat)
+library(SeuratObject)
+library(SeuratDisk)
+library(tidyverse)
+library(XeniumClean)
+
+source("scripts/R_scripts/helpers/celltype_functions_v3.R")
+```
+
+# Data
+```{r}
+xen1_label_transfer <- readRDS("data/xen1_label_transfer.rds")
+
+xen1_sc <- readRDS("data/yuehan_stromal_integrated.rds")
+```
+
+```{r}
+shared_genes <- intersect(rownames(reference2), rownames(xen1_label_transfer))
+```
+
+# Create matching broad cell types
+```{R}
+reference2$broad_type <- assign_broad_celltypes(reference2$cell_type)
+
+xen1_label_transfer_bycondition$broad_type <- assign_broad_celltypes(xen1_label_transfer_bycondition$lt_cell_type)
+```
+
+# Split Xenium by experiment/sex
+```{r}
+xenium1_list <- SplitObject(xen1_label_transfer_bycondition, split.by = "time_point")
+```
+
+# Build reference gene set
+```{R}
+gene_sets <- BuildReferenceGeneSets(
+  reference = reference2,
+  group.by  = "broad_type",          # BROAD labels (T_cells, not CD8_T_cells)
+  genes.use = shared_genes,
+  expressed.threshold     = 0.10,
+  not.expressed.threshold = 0.05
+)
+```
+
+# Fix Assay to Assay5 in sc_rna
+```{r}
+reference_backup <- reference
+
+reference[["RNA"]] <- as(
+  reference[["RNA"]],
+  Class = "Assay5"
+)
+```
+
+# Run clean up
+```{r}
+xen1_label_transfer_clean_bytimepoint <- XeniumClean(
+  object         = xenium1_list,
+  gene.sets      = gene_sets,
+  group.by       = "broad_type",
+  radius         = 50,
+  new.assay.name = "XeniumClean"
+)
+```
+
+```{r}
+objs_bytimepoint <- unname(xen1_label_transfer_clean_bytimepoint)
+
+xen1_clean_bytimepoint <- Reduce(
+  function(x, y) merge(x, y, merge.data = TRUE),
+  objs_bytimepoint
+)
+```
+
+```{r}
+objs_bysex <- unname(xen1_label_transfer_clean_bysex)
+
+xen1_clean_bysex <- Reduce(
+  function(x, y) merge(x, y, merge.data = TRUE),
+  objs_bysex
+)
+```
+
+# Re-UMAP
+```{r}
+DefaultAssay(xen1_clean_bytimepoint ) <- "XeniumClean"
+
+xen1_clean_bytimepoint <- NormalizeData(xen1_clean_bytimepoint )
+xen1_clean_bytimepoint <- ScaleData(xen1_clean_bytimepoint )
+xen1_clean_bytimepoint <- RunPCA(xen1_clean_bytimepoint , features = rownames(xen1_clean_bytimepoint ))
+xen1_clean_bytimepoint <- RunUMAP(xen1_clean_bytimepoint , dims = 1:30)
+```
+
+# Save RDS
+```{r}
+saveRDS(xen1_clean_bytimepoint,
+        file = "results/objects/xen1_clean_bytimepoint.rds")
+
+```
+# Transcripts QC
+
+## Distribution
+```{r}
+DefaultAssay(xen1_label_transfer) <- "Xenium"
+DefaultAssay(xen1_clean_bytimepoint) <- "XeniumClean"
+
+counts.before <- Matrix::colSums(GetAssayData(xen1_label_transfer, layer = "counts"))
+counts.after  <- Matrix::colSums(GetAssayData(xen1_clean_bytimepoint, layer = "counts"))
+
+summary(counts.before)
+summary(counts.after)
+
+par(mfrow = c(1,2))
+
+hist(counts.before,
+     breaks = 100,
+     main = "Before cleaning",
+     xlab = "Transcripts per cell")
+
+hist(counts.after,
+     breaks = 100,
+     main = "After XeniumClean",
+     xlab = "Transcripts per cell")
+```
+
+## Amount removed transcripts
+```{r}
+removed <- counts.before - counts.after
+
+summary(removed)
+
+hist(removed,
+     breaks = 100,
+     main = "Transcripts removed",
+     xlab = "Removed transcripts")
+```
+# Export Cell ID | predicted.id 
+```{r}
+ids_annotations_df <- data.frame(
+  "Cell ID" = Cells(xenium_clean),
+  "Annotation" = xenium_clean$predicted.id
+  )
+
+write.csv(ids_annotations_df, "xenium_clean_cellid_annotations_predicted.csv", row.names = FALSE)
+  
+```

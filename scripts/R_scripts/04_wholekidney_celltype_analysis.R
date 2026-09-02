@@ -11,14 +11,14 @@ settings <- list(
   
   # Seurat Object for analysis
   seurat_obj = file.path(
-    "xen1",
+    "data",
     "xen1diet.rds"
   ),
   
   # Cell type for analysis
   celltype = "Immune",
   # broad: "Stroma", "Immune", "PT", etc.
-  # fine: "
+  # fine: 
   
   celltype_column = "broad_celltype",
   # "broad_celltype" for broad types
@@ -29,11 +29,11 @@ settings <- list(
   reference = "1wk",
   time_point_order = c("1wk", "2wk", "4wk", "12wk"),
   
-  # edgeR
+  # Assay
   assay = "Xenium",
   layer = "counts",
   
-  # thresholds
+  # Thresholds
   fdr_cutoff = 0.05,
   logfc_cutoff = 1,
   n_labels = 10,
@@ -72,26 +72,45 @@ source("scripts/R_scripts/helpers/pseudobulk_functions_v3.R")
 # Prepare object
 # ===============================
 
-seurat_obj <- readRDS(project_path(settings$seurat_obj))
+message("Loading data...")
+seurat_obj <- readRDS(
+  project_path(settings$seurat_obj)
+)
 
 cat("Class:", class(seurat_obj), "\n")
 
 if (inherits(seurat_obj, "Seurat")) {
-  cat("Number of cells:", ncol(seurat_obj), "\n")
+  
+  cat(
+    "Number of cells:",
+    ncol(seurat_obj),
+    "\n"
+  )
+  
 } else {
+  
   print(seurat_obj)
+  
 }
 
 cat("Loaded object\n")
 
-seurat_obj <- add_broad_celltypes(seurat_obj)
+seurat_obj <- add_broad_celltypes(
+  seurat_obj
+)
+
 cat("Added broad celltypes\n")
 
 celltype_obj <- subset_celltype(
   seurat_obj,
   settings$celltype
 )
-cat("Subset complete:", ncol(celltype_obj), "cells\n")
+
+cat(
+  "Subset complete:",
+  ncol(celltype_obj),
+  "cells\n"
+)
 
 cat("Starting DE\n")
 
@@ -101,7 +120,9 @@ cell_summary <- summarise_celltype(
   variable = settings$variable
 )
 
-run_name <- get_celltype_run_name(settings)
+run_name <- get_celltype_run_name(
+  settings
+)
 
 output_dirs <- make_output_dirs(
   analysis = "wholekidney_broad_celltype",
@@ -112,6 +133,7 @@ output_dirs <- make_output_dirs(
 # Differential Expression
 # ===============================
 
+message("Running differential expression analysis...")
 celltype_obj[[settings$variable]] <- relevel(
   factor(celltype_obj[[settings$variable]][,1]), 
   ref = settings$reference
@@ -152,41 +174,55 @@ for (comp in comparisons) {
 # Gene Ontology
 # ===============================
 
-go_results <-
-  
-  run_all_go_seurat(
-    de_results,
-    fdr_cutoff = settings$fdr_cutoff,
-    ontology = settings$go_ontology,
-    p_cutoff = settings$go_p_cutoff,
-    min_genes = settings$go_min_genes
+message("Running GO analysis...")
+# Build Xenium panel gene universe
+xenium_universe <- rownames(
+  LayerData(
+    seurat_obj,
+    assay = settings$assay,
+    layer = settings$layer
   )
+)
+
+# Run GO (Seurat)
+go_results <- run_all_go_seurat(
+  de_results = de_results,
+  universe = xenium_universe,
+  fdr_cutoff = settings$fdr_cutoff,
+  ontology = settings$go_ontology,
+  p_cutoff = settings$go_p_cutoff,
+  min_genes = settings$go_min_genes
+)
 
 # ===============================
 # Figures
 # ===============================
 
+message("Creating figures...")
 # Stacked DEGs bar plots
-bar_plots <- lapply(names(de_results), function(name) {
-  plot_top_genes_bar(
-    de_table = de_results[[name]],
-    title    = name,
-    fdr_cutoff = settings$fdr_cutoff,
-    logfc_cutoff = settings$logfc_cutoff
-  )
-})
+bar_plots <- lapply(
+  names(de_results),
+  function(name) {
+    
+    plot_top_genes_bar(
+      de_table = de_results[[name]],
+      title = name,
+      fdr_cutoff = settings$fdr_cutoff,
+      logfc_cutoff = settings$logfc_cutoff
+    )
+  }
+)
+
 names(bar_plots) <- names(de_results)
 
 # GO plots
-go_plots <-
-  
-  purrr::imap(
-    go_results,
-    ~ plot_go_seurat(
-      .x,
-      title = .y
-    )
+go_plots <- purrr::imap(
+  go_results,
+  ~ plot_go_seurat(
+    .x,
+    title = .y
   )
+)
 
 # Plot DE Heatmap
 heatmap <- plot_de_heatmap(
@@ -197,11 +233,11 @@ heatmap <- plot_de_heatmap(
   timepoint_order = settings$time_point_order
 )
 
-
 # =======================
 # Save Outputs
 # =======================
 
+message("Saving results...")
 # Save DE tables
 save_de_tables_seurat(
   de_results,
@@ -234,7 +270,12 @@ save_go_figures_seurat(
 # Save DE Heatmaps
 save_de_heatmap_seurat(
   de_results,
-  timepoint_order = c("1wk", "2wk", "4wk", "12wk"),
+  timepoint_order = c(
+    "1wk",
+    "2wk",
+    "4wk",
+    "12wk"
+  ),
   output_dir = output_dirs$de_figures,
   settings = settings,
   run_name = run_name,

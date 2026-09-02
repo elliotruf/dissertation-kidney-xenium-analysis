@@ -11,12 +11,12 @@ settings <- list(
   roi_object = file.path(
     "results",
     "objects",
-    "Xen2_KO_Vessels_roi_objects.rds"
+    "Xen1_Female_Cortex_roi_objects.rds"
   ),
   
   # Differential expression
   variable = "time_point",
-  reference = "Sham",
+  reference = "1wk",
   
   # edgeR
   assay = "Xenium",
@@ -56,7 +56,7 @@ library(stringr)
 
 source("scripts/R_scripts/helpers/project_paths_v3.R")
 source("scripts/R_scripts/helpers/pseudobulk_functions_v3.R")
-source("scripts/R_scripts/broad_celltype_pseudobulk_functions_v2.R")
+source("scripts/R_scripts/helpers/broad_celltype_pseudobulk_functions_v2.R")
 source("scripts/R_scripts/helpers/plotting_functions_v3.R")
 source("scripts/R_scripts/helpers/output_functions_v3.R")
 
@@ -64,6 +64,7 @@ source("scripts/R_scripts/helpers/output_functions_v3.R")
 # Load ROI objects
 # ===============================
 
+message("Loading ROI object...")
 rois <- readRDS(settings$roi_object)
 
 run_name <- get_roi_run_name(rois)
@@ -74,9 +75,10 @@ output_dirs <- make_output_dirs(
 )
 
 # ===============================
-# Assign Broad Celltypes
+# Assign Broad Cell-Types
 # ===============================
 
+message("Assigning broad cell-types...")
 rois <- lapply(
   rois,
   function(x) {
@@ -95,6 +97,7 @@ rois <- lapply(
 # Build pseudobulks
 # ===============================
 
+message("Building pseudobulk...")
 pb <- build_pseudobulk_broadtype(
   rois,
   assay = settings$assay,
@@ -118,6 +121,7 @@ comparisons <- metadata_info$comparisons
 # Perform Differential Expression Analysis
 # ==========================================
 
+message("Running differential expression analysis...")
 de_results <- list()
 
 # DE per broad celltype
@@ -209,20 +213,33 @@ for (broad in unique(metadata$broad_type)) {
 # Run GO enrichment
 # ==========================================
 
+message("Running Gene Ontology analysis...")
+
+# Build Xenium panel gene universe
+xenium_universe <- rownames(
+  LayerData(
+    rois[[1]],
+    assay = settings$assay,
+    layer = settings$layer
+  )
+)
+
+# Run GO
 go_results <- run_go_edger_all(
   de_results = de_results,
+  universe = xenium_universe,
   fdr_cutoff = settings$fdr_cutoff,
   ontology = settings$go_ontology,
   p_cutoff = settings$go_p_cutoff,
   min_genes = settings$go_min_genes
 )
 
+message("Saving results...")
 # =====================
 # Save DE Tables
 # =====================
 
-message("Saving DE tables")
-save_de_tables(
+save_de_tables_edgeR(
   de_results,
   output_dirs$de_tables,
   settings
@@ -232,7 +249,6 @@ save_de_tables(
 # Save DE Figures
 # =====================
 
-message("Saving volcanoes")
 save_de_figures_edgeR(
   de_results,
   output_dirs$de_figures,
@@ -244,7 +260,6 @@ save_de_figures_edgeR(
 # Save GO Tables
 # =====================
 
-message("Saving GO tables")
 save_go_tables(
   go_results,
   output_dirs$go_tables

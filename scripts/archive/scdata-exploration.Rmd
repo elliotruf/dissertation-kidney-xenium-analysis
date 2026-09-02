@@ -1,0 +1,245 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load modules
+```{r}
+library(Seurat)
+library(BPCells)
+library(SeuratObject)
+library(SeuratDisk)
+library(tidyverse)
+library(jsonlite)
+library(org.Mm.eg.db)
+library(AnnotationDbi)
+library(future)
+plan("sequential")
+options(future.globals.maxSize = 1e9)
+
+# For plotting
+library(ggplot2)
+library(ggpmisc)
+library(scales)
+library(cowplot)
+library(gridExtra)
+library(viridis)
+library(hrbrthemes)
+```
+
+# Load data
+```{r}
+xen1_sc <- readRDS("data/yuehan_stromal_integrated.rds")
+
+xen1 <- readRDS("xen1/merged.samples.IndividualBanksy_AGFTrue_Lambda0.05_Resolution1.5_Annotated.rds")
+```
+
+# Set objects
+```{r}
+reference <- xen1_sc
+
+query <- xen1
+
+DefaultAssay(reference) <- "RNA"
+DefaultAssay(query) <- "Xenium"
+```
+
+# Create new reference Seurat Object with gene symbols
+```{r}
+# 1. Extract raw counts
+counts <- GetAssayData(reference, assay = "RNA", layer = "counts")
+
+# 2. Convert Ensembl IDs to gene symbols
+symbols <- mapIds(
+  org.Mm.eg.db,
+  keys = rownames(counts),
+  keytype = "ENSEMBL",
+  column = "SYMBOL",
+  multiVals = "first"
+)
+
+# 3. Remove genes without symbols
+keep <- !is.na(symbols)
+counts <- counts[keep, ]
+rownames(counts) <- symbols[keep]
+
+# 4. Remove duplicated gene symbols
+counts <- counts[!duplicated(rownames(counts)), ]
+
+# 5. Create a new Seurat object
+reference2 <- CreateSeuratObject(counts = counts)
+
+# 6. Copy metadata (cell annotations, clusters, etc.)
+reference2@meta.data <- reference@meta.data
+
+# 7. Normalize and compute PCA
+reference2 <- NormalizeData(reference2)
+reference2 <- FindVariableFeatures(reference2)
+reference2 <- ScaleData(reference2)
+reference2 <- RunPCA(reference2)
+```
+
+# Verified shared features
+```{r}
+shared.features <- intersect(
+    rownames(reference2),
+    rownames(query)
+)
+
+length(shared.features)
+```
+
+# Find transfer anchors
+```{r}
+anchors <- FindTransferAnchors(
+    reference = reference2,
+    query = query,
+    reference.assay = "RNA",
+    query.assay = "Xenium",
+    features = shared.features,
+    dims = 1:30
+)
+```
+
+# ===================================================
+
+```{r}
+library(sctransform)
+library(harmony)
+library(Seurat)
+library(tidyverse)
+library(glmGamPoi)
+
+library(future)
+
+plan(sequential)
+
+options(future.globals.maxSize = Inf)
+```
+
+```{r}
+sc.list <- SplitObject(reference2, split.by = "condition") # sc@meta.data[source_colname] stores information about which sample a cell comes from
+
+panel.genes <- sub("\\.m[01]$", "", rownames(xen1diet))
+panel.genes <- unique(panel.genes)
+
+length(panel.genes)
+head(panel.genes)
+
+residual_features <- intersect(
+    panel.genes,
+    rownames(reference2)
+)
+
+length(residual_features)
+
+sc.list <- lapply(X = sc.list, 
+                                FUN = SCTransform, 
+                                method = "glmGamPoi", 
+                                return.only.var.genes = FALSE,
+                                residual.features = residual_features, # this would be the Xenium gene panel
+                                )
+# this basically yields the union of all the features which were found to be variable in atleast one sc.list entry
+var.features <- SelectIntegrationFeatures(object.list = sc.list, nfeatures = 3000) 
+
+```
+
+```{r}
+# here, in sc[['SCT']]@scale.data (which is what RunPCA takes information from), merge will yield just the intersection of features in the list. Hence, we need to recompute scaling below.
+
+sc.sct <- merge(x = sc.list[[1]], y = sc.list[2:length(sc.list)], merge.data=TRUE) 
+
+VariableFeatures(sc.sct) <- var.features
+
+# I am doing rescaling only if residual features are supplied (because only then there are very few features found to be highly variable in all samples, and we need more which we get by rescaling)
+
+if (!is.null(residual_features)){
+    sc.sct <- ScaleData(sc.sct) # now, we will have all the genes in scale.data
+}
+
+sc.sct <- RunPCA(sc.sct, verbose = TRUE)
+
+sc.sct <- harmony::RunHarmony(
+    object = sc.sct,
+    group.by.vars = "condition"
+)
+
+sc.sct <- RunUMAP(sc.sct, reduction = "harmony", dims = 1:30)
+
+sc.sct <- FindNeighbors(sc.sct, reduction = "harmony", dims = 1:30) %>% FindClusters()
+```
+
+
+```{r}
+xen1 <- readRDS("xen1/merged.samples.IndividualBanksy_AGFTrue_Lambda0.05_Resolution1.5_Annotated.rds")
+
+data <- xen1
+
+DefaultAssay(data) <- "Xenium"
+
+data <- subset(data, subset = nCount_Xenium > 5) # keeping atleast 6 transcripts in the cell, else we capture badqual or non-cells too
+
+data <- SCTransform(data, assay = "Xenium", vars.to.regress = c('nFeature_Xenium', 'nCount_Xenium'), vst.flavor = "v2", verbose = FALSE)
+
+data <- RunPCA(data, npcs = 50, features = rownames(data), verbose = FALSE)
+
+data <- RunUMAP(data, dims = 1:30, verbose = FALSE)
+
+data <- FindNeighbors(data, reduction = "pca", dims = 1:30, verbose = FALSE)
+
+data <- FindClusters(data, resolution = 0.8, verbose = FALSE)
+    
+```
+
+# Find Transfer Anchors
+```{r}
+anchors <- FindTransferAnchors(reference = sc.sct, query = data,
+                               normalization.method = "SCT",
+                               recompute.residuals = FALSE, # this I have found to work better than the default TRUE option for my data, and my reasoning is that since the spatial and single cell technologies are different, it is better to leave the SCT residuals for spatial data to be what was found while processing itself
+                               reference.reduction = 'harmony') # using batch corrected reduction
+```
+
+```{r}
+# using weight.reduction as the pca of the spatial data makes more sense as that is a good dimension reduction for query cells (spatial object's cells), instead of the default 'pcaproject', which leads to the dimension reduction of reference's harmony, which was driven by batch correction and hence is not best in finding relative distances between cells of query (spatial data)
+predictions <- TransferData(anchorset = anchors, refdata = sc.sct$cell_type, weight.reduction = data[["pca"]], dims = 1:20)
+```
+
+# QC
+```{r}
+head(predictions)
+
+summary(predictions$prediction.score.max)
+
+hist(predictions$prediction.score.max, breaks = 50)
+```
+
+```{R}
+tab <- table(
+    Xenium = data$cell_type,
+    Transfer = predictions$predicted.id
+)
+
+tab.prop <- prop.table(tab, 1)
+
+pheatmap(tab.prop)
+```
+
+```{r}
+tab.prop <- prop.table(tab, 1)
+
+best <- data.frame(
+  Xenium = rownames(tab.prop),
+  scRNA = colnames(tab.prop)[max.col(tab.prop)],
+  Fraction = apply(tab.prop, 1, max)
+)
+
+best[order(best$Fraction, decreasing = TRUE), ]
+```
+
+# Accept label transfer
+```{r}
+data$lt_cell_type <- predictions$predicted.id # label-transfer cell type
+```
+

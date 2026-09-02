@@ -13,11 +13,11 @@ settings <- list(
     "Xen2_KO_Vessels"
   ),
   
-  # Name used when saving outputs
-  experiment = "Xen2_KO_Vessels",
-  
   # Parent Seurat object
   seurat_obj = xen2diet,
+  
+  # Name used when saving outputs
+  experiment = "Xen2_KO_Vessels",
   
   # Pattern used to extract timepoints from folder names
   time_point_pattern =
@@ -47,4 +47,8 @@ source("scripts/R_scripts/helpers/extraction_functions_v3.R")
 # Extract ROIs
 # ===============================
 
+message("Extracting ROIs from specified dataset...")
 extract_rois(settings$seurat_obj)
+
+# Done
+message("Done!")

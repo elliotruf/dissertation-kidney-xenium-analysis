@@ -201,6 +201,11 @@ All scripts contain a USER SETTINGS section near the beginning of the file, allo
 Available options are tailored to the requirements of each individual script. Any changes should be saved before sourcing or running the script.
 
 ### Step 1. ROI Extraction
+Load the Seurat object for the Xenium experiment using the terminal:
+```{r}
+dataset <- readRDS("data/[File Name Here].rds")
+```
+
 Following ROI selection in Xenium Explorer, export the ROI files in the expected format and run the ROI extraction workflow:
 
 ```{r echo=TRUE, eval=FALSE}
