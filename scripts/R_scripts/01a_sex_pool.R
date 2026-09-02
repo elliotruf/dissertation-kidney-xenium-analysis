@@ -32,12 +32,13 @@ settings <- list(
 
 library(Seurat)
 
-source("scripts/R_scripts/helpers/project_paths_v3.R")
+source("scripts/R_scripts/helpers/project_paths.R")
 
 # ================
 # Pool Objects
 # ================
 
+message("Loading objects...")
 seurat_obj_1 <- readRDS(project_path(settings$seurat_obj_1))
 
 seurat_obj_2 <- readRDS(project_path(settings$seurat_obj_2))
@@ -68,4 +69,5 @@ seurat_obj_combined <- saveRDS(
   )
 )
   
-
+# Done!
+message("Done!")
