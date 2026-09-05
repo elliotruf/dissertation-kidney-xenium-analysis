@@ -261,7 +261,7 @@ p_celltypeComposition <- ggplot(
   ) +
   
   labs(
-    x = "Developmental stage",
+    x = "Time point",
     y = "Cell proportion",
     fill = legend_title,
     title = plot_title,

@@ -68,6 +68,12 @@ build_pseudobulk <- function(
   # Give pseudobulk matrix the same column names
   colnames(count_matrix) <- metadata$sample_id
   
+  message("Count matrix dimensions: ", paste(dim(count_matrix), collapse = " x "))
+  message("Metadata rows: ", nrow(metadata))
+  message("Sample IDs: ", length(metadata$sample_id))
+  
+  print(metadata[, c("roi", "group", "time_point", "sample_id")])
+  
   # Reorder metadata to exactly match count matrix columns
   metadata <- metadata[
     colnames(count_matrix),
@@ -355,13 +361,44 @@ run_go_edger_all <- function(
 
 get_roi_run_name <- function(rois) {
   
-  experiment <- unique(vapply(rois, \(x) unique(x$experiment), character(1)))
-  group  <- unique(vapply(rois, \(x) unique(x$group), character(1)))
-  tissue <- unique(vapply(rois, \(x) unique(x$tissue), character(1)))
+  experiment <- unique(vapply(
+    rois,
+    \(x) unique(x$experiment),
+    character(1)
+  ))
+  
+  group <- unique(vapply(
+    rois,
+    \(x) unique(x$group),
+    character(1)
+  ))
+  
+  tissue <- unique(vapply(
+    rois,
+    \(x) unique(x$tissue),
+    character(1)
+  ))
   
   stopifnot(length(experiment) == 1)
-  stopifnot(length(group) == 1)
   stopifnot(length(tissue) == 1)
   
-  paste(experiment, group, tissue, sep = "_")
+  if (length(group) == 1) {
+    
+    paste(
+      experiment,
+      group,
+      tissue,
+      sep = "_"
+    )
+    
+  } else {
+    
+    paste(
+      experiment,
+      "combined",
+      tissue,
+      sep = "_"
+    )
+    
+  }
 }

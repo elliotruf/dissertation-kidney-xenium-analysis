@@ -475,11 +475,21 @@ get_celltype_run_name <- function(
     settings
 ) {
   
-  paste(
+  run_name <- paste(
     settings$experiment,
     settings$celltype,
     sep = "_"
   )
+  
+  if (!is.null(settings$condition)) {
+    run_name <- paste(
+      run_name,
+      settings$condition,
+      sep = "_"
+    )
+  }
+  
+  run_name
   
 }
 

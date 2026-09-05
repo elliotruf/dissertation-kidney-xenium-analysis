@@ -16,7 +16,7 @@ settings <- list(
   ),
   
   # Cell type for analysis
-  celltype = "Immune",
+  celltype = "PT",
   # broad: "Stroma", "Immune", "PT", etc.
   # fine: 
   
@@ -25,6 +25,7 @@ settings <- list(
   # "cell_type" for fine types
   
   # Differential expression
+  condition = "Female",
   variable = "time_point",
   reference = "1wk",
   time_point_order = c("1wk", "2wk", "4wk", "12wk"),
@@ -62,11 +63,11 @@ library(tidyverse)
 library(presto)
 library(readxl)
 
-source("scripts/R_scripts/helpers/project_paths_v3.R")
-source("scripts/R_scripts/helpers/wholekidney_celltype_functions_v2.R")
-source("scripts/R_scripts/helpers/plotting_functions_v3.R")
-source("scripts/R_scripts/helpers/output_functions_v3.R")
-source("scripts/R_scripts/helpers/pseudobulk_functions_v3.R")
+source("scripts/R_scripts/helpers/project_paths.R")
+source("scripts/R_scripts/helpers/wholekidney_celltype_functions.R")
+source("scripts/R_scripts/helpers/plotting_functions.R")
+source("scripts/R_scripts/helpers/output_functions.R")
+source("scripts/R_scripts/helpers/pseudobulk_functions.R")
 
 # ===============================
 # Prepare object
@@ -104,6 +105,11 @@ cat("Added broad celltypes\n")
 celltype_obj <- subset_celltype(
   seurat_obj,
   settings$celltype
+)
+
+celltype_obj <- subset(
+  celltype_obj,
+  subset = sample_id == settings$condition
 )
 
 cat(
@@ -151,6 +157,8 @@ de_results <- list()
 for (comp in comparisons) {
   
   comparison_name <- paste0(
+    settings$condition,
+    "_",
     comp,
     "_vs_",
     settings$reference
@@ -207,13 +215,12 @@ bar_plots <- lapply(
     plot_top_genes_bar(
       de_table = de_results[[name]],
       title = name,
+      run_name = run_name,
       fdr_cutoff = settings$fdr_cutoff,
       logfc_cutoff = settings$logfc_cutoff
     )
   }
 )
-
-names(bar_plots) <- names(de_results)
 
 # GO plots
 go_plots <- purrr::imap(
@@ -227,7 +234,7 @@ go_plots <- purrr::imap(
 # Plot DE Heatmap
 heatmap <- plot_de_heatmap(
   de_results,
-  seurat_obj = seurat_obj,
+  seurat_obj = celltype_obj,
   group_by = settings$variable,
   assay = settings$assay,
   timepoint_order = settings$time_point_order
@@ -250,7 +257,6 @@ save_de_figures_seurat(
   de_results,
   output_dirs$de_figures,
   settings,
-  run_name
 )
 
 # Save GO tables
@@ -270,16 +276,11 @@ save_go_figures_seurat(
 # Save DE Heatmaps
 save_de_heatmap_seurat(
   de_results,
-  timepoint_order = c(
-    "1wk",
-    "2wk",
-    "4wk",
-    "12wk"
-  ),
+  timepoint_order = settings$time_point_order,
   output_dir = output_dirs$de_figures,
   settings = settings,
   run_name = run_name,
-  seurat_obj = seurat_obj,
+  seurat_obj = celltype_obj,
   group_by = settings$variable,
   assay = settings$assay
 )

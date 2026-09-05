@@ -212,21 +212,3 @@ run_all_go_seurat <- function(
   go_results
   
 }
-
-# ==========================================
-# Function 8: Run Name
-# ==========================================
-# Generate a unique identifier for the
-# current cell type analysis.
-
-get_celltype_run_name <- function(
-    settings
-) {
-  
-  paste(
-    settings$experiment,
-    settings$celltype,
-    sep = "_"
-  )
-  
-}

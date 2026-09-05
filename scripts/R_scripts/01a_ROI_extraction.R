@@ -9,15 +9,15 @@ settings <- list(
   # Directory containing ROI folders, starting from "Dissertation"
   roi_dir = file.path(
     "data",
-    "Xen2_ROIs",
-    "Xen2_KO_Vessels"
+    "Xen1_ROIs",
+    "Xen1_Male_Cortex"
   ),
   
   # Parent Seurat object
-  seurat_obj = xen2diet,
+  seurat_obj = xen1diet,
   
   # Name used when saving outputs
-  experiment = "Xen2_KO_Vessels",
+  experiment = "Xen1_Male_Cortex",
   
   # Pattern used to extract timepoints from folder names
   time_point_pattern =
@@ -40,8 +40,8 @@ library(tidyverse)
 library(readxl)
 library(fs)
 
-source("scripts/R_scripts/helpers/project_paths_v3.R")
-source("scripts/R_scripts/helpers/extraction_functions_v3.R")
+source("scripts/R_scripts/helpers/project_paths.R")
+source("scripts/R_scripts/helpers/extraction_functions.R")
 
 # ===============================
 # Extract ROIs

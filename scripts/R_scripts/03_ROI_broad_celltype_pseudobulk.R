@@ -11,12 +11,12 @@ settings <- list(
   roi_object = file.path(
     "results",
     "objects",
-    "Xen1_Female_Cortex_roi_objects.rds"
+    "Xen1_Vessels_combined_roi_objects.rds"
   ),
   
   # Differential expression
   variable = "time_point",
-  reference = "1wk",
+  reference = "Sham",
   
   # edgeR
   assay = "Xenium",
@@ -54,11 +54,12 @@ library(GO.db)
 library(enrichplot) 
 library(stringr)
 
-source("scripts/R_scripts/helpers/project_paths_v3.R")
-source("scripts/R_scripts/helpers/pseudobulk_functions_v3.R")
-source("scripts/R_scripts/helpers/broad_celltype_pseudobulk_functions_v2.R")
-source("scripts/R_scripts/helpers/plotting_functions_v3.R")
-source("scripts/R_scripts/helpers/output_functions_v3.R")
+source("scripts/R_scripts/helpers/project_paths.R")
+source("scripts/R_scripts/helpers/pseudobulk_functions.R")
+source("scripts/R_scripts/helpers/broad_celltype_pseudobulk_functions.R")
+source("scripts/R_scripts/helpers/celltype_functions.R")
+source("scripts/R_scripts/helpers/plotting_functions.R")
+source("scripts/R_scripts/helpers/output_functions.R")
 
 # ===============================
 # Load ROI objects

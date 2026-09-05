@@ -20,12 +20,12 @@ plot_volcano_edgeR <- function(
   
   df$Significance[
     df$FDR < fdr_cutoff &
-      df$logFC > logfc_cutoff
+      df$logFC > 0
   ] <- "Up"
   
   df$Significance[
     df$FDR < fdr_cutoff &
-      df$logFC < -logfc_cutoff
+      df$logFC < 0
   ] <- "Down"
   
   # Top genes to label
@@ -144,14 +144,13 @@ plot_volcano_edgeR <- function(
 plot_go_edgeR <- function(
     go_result,
     title = NULL,
-    n_terms = 15
+    n_terms = 10
 ) {
   
   if (is.null(go_result))
     return(NULL)
   
   p <-
-    
     enrichplot::dotplot(
       go_result,
       showCategory = n_terms
@@ -161,7 +160,7 @@ plot_go_edgeR <- function(
       labels = \(x)
       stringr::str_wrap(
         x,
-        width = 25
+        width = 30
       )
     ) +
     
@@ -174,48 +173,36 @@ plot_go_edgeR <- function(
     theme_bw(base_size = 12) +
     
     theme(
-      
       plot.title = element_text(
         face = "bold",
         hjust = 0.5
       ),
-      
       axis.title = element_text(
         face = "bold"
       ),
-      
       axis.text.y = element_text(
         colour = "black"
       ),
-      
       axis.text.x = element_text(
         colour = "black"
       ),
-      
       panel.grid.major = element_line(
         colour = "grey90",
         linewidth = 0.3
       ),
-      
       panel.grid.minor = element_blank(),
-      
       panel.border = element_rect(
         colour = "black",
         linewidth = 0.6
       ),
-      
       legend.title = element_text(
         face = "bold"
       ),
-      
       legend.background = element_blank(),
-      
       legend.key = element_blank()
-      
     )
   
   return(p)
-  
 }
 
 # =======================================
@@ -434,10 +421,11 @@ plot_go_seurat <- function(
 plot_top_genes_bar <- function(
     de_table,
     title = NULL,
+    run_name = NULL,
     fdr_cutoff = 0.05,
     logfc_cutoff = 1,
-    n_genes = 20,     # total genes shown, split ~evenly up/down
-    min_pct = 0.1      # require pct.1 or pct.2 >= this to be eligible
+    n_genes = 20,
+    min_pct = 0.1
 ) {
   
   if (!is.data.frame(de_table)) {
@@ -505,6 +493,14 @@ plot_top_genes_bar <- function(
   
   n_up_total <- sum(sig$Significance == "Up")
   n_down_total <- sum(sig$Significance == "Down")
+  
+  if (!is.null(run_name)) {
+    title <- paste(
+      gsub("_", " ", run_name),
+      gsub("_", " ", title),
+      sep = " — "
+    )
+  }
   
   p <- ggplot(
     top,
@@ -588,6 +584,7 @@ plot_de_heatmap <- function(
     n_genes_per_comparison = 20  # top up+down per comparison, before union
 ) {
   
+
   if (!is.list(de_results) || is.data.frame(de_results)) {
     stop("plot_de_heatmap: `de_results` must be a named list of per-comparison data.frames.")
   }
@@ -693,12 +690,6 @@ plot_de_heatmap <- function(
   
   avg_expr <- as.data.frame(avg_expr)
   
-  if (!all(timepoint_order %in% colnames(avg_expr))) {
-    stop(
-      "plot_de_heatmap: not all `timepoint_order` values found in colnames(avg_expr). ",
-      "colnames(avg_expr) = ", paste(colnames(avg_expr), collapse = ", ")
-    )
-  }
   missing_genes <- setdiff(genes_wanted, rownames(avg_expr))
   if (length(missing_genes) > 0) {
     warning(

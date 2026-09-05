@@ -88,6 +88,11 @@ save_go_figures_edgeR <- function(
     if (is.null(p))
       next
     
+    n_actual <- min(
+      settings$go_n_terms,
+      nrow(as.data.frame(go_results[[name]]))
+    )
+    
     ggsave(
       
       filename = file.path(
@@ -101,7 +106,7 @@ save_go_figures_edgeR <- function(
       plot = p,
       
       width = 10,
-      height = 7
+      height = max(3.5, 0.4 * n_actual + 2)
       
     )
     
@@ -168,21 +173,23 @@ save_go_tables <- function(
     if (is.null(go_results[[name]]))
       next
     
-    write.csv(
-      as.data.frame(go_results[[name]]),
-      
-      file.path(
+    go_df <- as.data.frame(go_results[[name]])
+    
+    go_df$GeneRatio <- as.character(go_df$GeneRatio)
+    go_df$BgRatio <- as.character(go_df$BgRatio)
+    
+    writexl::write_xlsx(
+      go_df,
+      path = file.path(
         output_dir,
-        paste0(name, "_GO.csv")
-      ),
-      
-      row.names = FALSE
-      
+        paste0(name, "_GO.xlsx")
+      )
     )
     
   }
   
 }
+
 
 # =================================
 # Function 5: Output Directories
@@ -246,7 +253,6 @@ make_output_dirs <- function(
 # ======================================
 # Function 6: Save DE Figures (Seurat)
 # ======================================
-
 save_de_figures_seurat <- function(
     de_results,
     output_dir,
@@ -257,26 +263,15 @@ save_de_figures_seurat <- function(
   for (name in names(de_results)) {
     
     comparison <- gsub("_vs_", " vs ", name)
-    
-    run_label <- if (!is.null(run_name)) {
-      gsub("_", " ", run_name)
-    } else {
-      NULL
-    }
-    
-    title <- if (is.null(run_label)) {
-      comparison
-    } else {
-      paste(run_label, "—", comparison)
-    }
+    comparison <- sub("^[^_]+_", "", comparison)
     
     p <- plot_top_genes_bar(
       de_table = de_results[[name]],
-      title    = name,
+      title = comparison,
+      run_name = run_name,
       fdr_cutoff = settings$fdr_cutoff,
       logfc_cutoff = settings$logfc_cutoff
     )
-
     
     ggsave(
       filename = file.path(
@@ -287,11 +282,8 @@ save_de_figures_seurat <- function(
       width = 7,
       height = 5
     )
-    
   }
-  
 }
-
 
 # ======================================
 # Function 7: Save GO Figures (Seurat)
@@ -306,8 +298,11 @@ save_go_figures_seurat <- function(
   
   for (name in names(go_results)) {
     
-    comparison <- sub("_(up|down)$", "", name)
-    comparison <- gsub("_vs_", " vs ", comparison)
+    print(names(de_results))
+    print(sapply(de_results, class))
+    
+    comparison <- gsub("_vs_", " vs ", name)
+    comparison <- sub("^[^_]+_", "", comparison)
     
     direction <- ifelse(
       grepl("_up$", name),
@@ -327,10 +322,11 @@ save_go_figures_seurat <- function(
       paste(run_label, comparison, direction, sep = " — ")
     }
     
-    p <- plot_go_seurat(
-      go_results[[name]],
+    p <- plot_top_genes_bar(
+      de_table = de_results[[name]],
       title = title,
-      n_terms = settings$go_n_terms
+      fdr_cutoff = settings$fdr_cutoff,
+      logfc_cutoff = settings$logfc_cutoff
     )
     
     if (is.null(p))

@@ -8,12 +8,12 @@ settings <- list(
   roi_object = file.path(
     "results",
     "objects",
-    "Xen1_Female_Cortex_roi_objects.rds"
+    "Xen2_KO_Vessels_roi_objects.rds"
   ),
   
   # Differential expression
   variable = "time_point",
-  reference = "1wk",
+  reference = "Sham",
   
   # edgeR
   assay = "Xenium",
@@ -46,10 +46,10 @@ library(ggplot2)
 library(ggrepel)
 library(tidyverse)
 
-source("scripts/R_scripts/helpers/project_paths_v3.R")
-source("scripts/R_scripts/helpers/pseudobulk_functions_v3.R")
-source("scripts/R_scripts/helpers/plotting_functions_v3.R")
-source("scripts/R_scripts/helpers/output_functions_v3.R")
+source("scripts/R_scripts/helpers/project_paths.R")
+source("scripts/R_scripts/helpers/pseudobulk_functions.R")
+source("scripts/R_scripts/helpers/plotting_functions.R")
+source("scripts/R_scripts/helpers/output_functions.R")
 
 # ===============================
 # Load ROI objects
@@ -57,6 +57,23 @@ source("scripts/R_scripts/helpers/output_functions_v3.R")
 
 message("Loading ROI object...")
 rois <- readRDS(settings$roi_object)
+
+# Keep only cells matching the timepoint encoded in each ROI name
+roi_names <- names(rois)
+
+rois <- lapply(roi_names, function(roi_name) {
+  
+  x <- rois[[roi_name]]
+  
+  expected_timepoint <- sub(".*_", "", roi_name)
+  
+  subset(
+    x,
+    subset = time_point == expected_timepoint
+  )
+})
+
+names(rois) <- roi_names
 
 run_name <- get_roi_run_name(rois)
 
@@ -150,8 +167,6 @@ go_results <- run_go_edger_all(
   p_cutoff = settings$go_p_cutoff,
   min_genes = settings$go_min_genes
 )
-
-print(names(go_results))
 
 message("Saving results...")
 # ==========================================

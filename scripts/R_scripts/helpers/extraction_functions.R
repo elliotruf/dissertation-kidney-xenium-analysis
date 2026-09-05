@@ -153,6 +153,9 @@ create_roi_object <- function(
     )
   }
   
+  # Expected time point
+  expected_timepoint <- tolower(roi_row$time_point)
+  
   # Match ROI Cell IDs only within the expected sample
   matched_by_roi <- sample_cells[
     sub(
@@ -175,7 +178,27 @@ create_roi_object <- function(
     )
   }
   
-  # Strict sample QC (must be same sample)
+  # Restrict matched cells to expected time point
+  cell_timepoints <- tolower(
+    seurat_obj$time_point[matched_by_roi]
+  )
+  
+  cell_timepoints[cell_timepoints == "naive"] <- "sham"
+  
+  matched_by_roi <- matched_by_roi[
+    cell_timepoints == expected_timepoint
+  ]
+  
+  if (length(matched_by_roi) == 0) {
+    stop(
+      "No cells matching expected time point ",
+      roi_row$time_point,
+      " found for ",
+      roi_row$roi_id
+    )
+  }
+  
+  # Strict sample QC
   matched_samples <- unique(
     seurat_obj$sample_id[matched_by_roi]
   )
@@ -189,9 +212,7 @@ create_roi_object <- function(
     )
   }
   
-  # Strict time-point QC (must be same timepoint)
-  expected_timepoint <- tolower(roi_row$time_point)
-  
+  # Strict time-point QC
   matched_timepoints <- unique(
     tolower(seurat_obj$time_point[matched_by_roi])
   )
@@ -200,6 +221,7 @@ create_roi_object <- function(
   
   if (length(matched_timepoints) != 1 ||
       matched_timepoints != expected_timepoint) {
+    
     stop(
       "ROI ", roi_row$roi_id,
       " expected time point ", roi_row$time_point,
