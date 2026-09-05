@@ -1,3 +1,17 @@
+# ROI Pseudobulk
+#
+# Generates pseudobulk profiles for 
+# 
+#
+# Before running:
+# - Set the ROI object to the desired .rds file.
+# - Set the experiment name used for output files
+# - Set the condition, time point, and reference time point variables
+# - Set the assay and layer
+# - Set the desired FDR and LogFC thresholds, and the number of DEGs to be labeled.
+# - Set the Gene Ontology to run (BP, MP, etc.), and the p-value threshold, 
+# number of terms to display and the minimum required genes to run GO analysis.
+
 # ==================================
 # User Settings
 # ==================================
@@ -7,13 +21,18 @@ settings <- list(
   # ROI object to analyse
   roi_object = file.path(
     "results",
-    "objects",
-    "Xen2_KO_Vessels_roi_objects.rds"
+    "ROI_extraction",
+    "Xen1_Male_Cortex",
+    "objects/Xen1_Male_Cortex_roi_objects.rds"
   ),
   
+  # Name used for output directories and files
+  experiment_name = "Xen1_Male_Cortex",
+  
   # Differential expression
-  variable = "time_point",
-  reference = "Sham",
+  condition_variable = "condition",   # What is the experimental condition variable called? ## NOT CURRENTLY USED
+  time_point_variable = "time_point", # What is the time point variable called?
+  reference_time_point = "1wk",      # What will the other time points be compared to?
   
   # edgeR
   assay = "Xenium",
@@ -33,7 +52,7 @@ settings <- list(
 )
 
 # ===============================
-# Preparation
+# Dependencies
 # ===============================
 
 library(Seurat)
@@ -47,7 +66,7 @@ library(ggrepel)
 library(tidyverse)
 
 source("scripts/R_scripts/helpers/project_paths.R")
-source("scripts/R_scripts/helpers/pseudobulk_functions.R")
+source("scripts/R_scripts/helpers/ROI_pseudobulk_functions.R")
 source("scripts/R_scripts/helpers/plotting_functions.R")
 source("scripts/R_scripts/helpers/output_functions.R")
 
@@ -75,20 +94,14 @@ rois <- lapply(roi_names, function(roi_name) {
 
 names(rois) <- roi_names
 
-run_name <- get_roi_run_name(rois)
-
-output_dirs <- make_output_dirs(
-  analysis = "ROI_pseudobulk",
-  run_name = run_name
-)
-
 # ===============================
-# Build pseudobulks
+# Build Pseudobulk Profiles
 # ===============================
 
 message("Building pseudobulk...")
+
 pb <- build_pseudobulk(
-  rois,
+  roi_list = rois,
   assay = settings$assay,
   layer = settings$layer
 )
@@ -96,70 +109,85 @@ pb <- build_pseudobulk(
 counts <- pb$counts
 metadata <- pb$metadata
 
+
+# ==============================
+# Prepare DE Metadata
+# ==============================
+
 metadata_info <- prepare_de_metadata(
-  metadata,
-  variable = settings$variable,
-  reference = settings$reference
+  metadata = metadata,
+  condition_variable = settings$condition_variable,
+  timepoint_variable = settings$time_point_variable,
+  reference_time_point = settings$reference_time_point
 )
 
 metadata <- metadata_info$metadata
 
-comparisons <- metadata_info$comparisons
 
 # ==========================================
 # Perform Differential Expression Analysis
 # ==========================================
 
 message("Fitting edgeR model...")
-edgeR_model <- fit_edgeR(
+
+edgeR_model <- fit_edge_r(
   counts = counts,
   metadata = metadata,
-  variable = settings$variable
+  variable = settings$time_point_variable
 )
 
 fit <- edgeR_model$fit
 
-reference <- levels(metadata[[settings$variable]])[1]
+reference_time_point <- levels(
+  metadata[[settings$time_point_variable]]
+)[1]
+
+comparisons <- setdiff(
+  levels(metadata[[settings$time_point_variable]]),
+  reference_time_point
+)
 
 de_results <- list()
 
 message("Running differential expression analysis...")
-for (comp in comparisons) {
+
+for (comparison in comparisons) {
   
   coef_name <- paste0(
-    settings$variable,
-    comp
+    settings$time_point_variable,
+    comparison
   )
   
   comparison_name <- paste0(
-    comp,
+    comparison,
     "_vs_",
-    reference
+    reference_time_point
   )
   
   de_results[[comparison_name]] <- run_roi_de(
-    fit,
-    coef_name
+    fit = fit,
+    coef = coef_name
   )
   
 }
+
 
 # ===================================
 # Perform Gene Ontology Analysis
 # ===================================
 
 message("Running Gene Ontology analysis...")
-# Build Xenium panel gene universe
+
+# Build Xenium panel gene universe.
 xenium_universe <- rownames(
-  LayerData(
+  SeuratObject::LayerData(
     rois[[1]],
     assay = settings$assay,
     layer = settings$layer
   )
 )
 
-# Run edgeR GO
-go_results <- run_go_edger_all(
+go_results <- run_go_edge_r_all(
   de_results = de_results,
   universe = xenium_universe,
   fdr_cutoff = settings$fdr_cutoff,
@@ -168,46 +196,66 @@ go_results <- run_go_edger_all(
   min_genes = settings$go_min_genes
 )
 
-message("Saving results...")
-# ==========================================
-# Save Differential Expression Results
-# ==========================================
 
-save_de_tables_edgeR(
-  de_results = de_results,
-  output_dir = output_dirs$de_tables,
-  settings = settings
+# ===================================
+# Make Output Directories
+# ===================================
+
+output_dirs <- make_output_dirs(
+  analysis = "ROI_pseudobulk",
+  experiment_name = settings$experiment_name,
+  subdirectories = c(
+    "de_tables",
+    "de_figures",
+    "go_tables",
+    "go_figures"
+  )
 )
 
+message("Saving results...")
+
 # ==========================================
-# Save Volcano Plots
+# Save DE Tables
 # ==========================================
 
-save_de_figures_edgeR(
+save_de_figures_edge_r(
   de_results = de_results,
   output_dir = output_dirs$de_figures,
-  settings = settings,
-  run_name = run_name
+  experiment_name = settings$experiment_name,
+  fdr_cutoff = settings$fdr_cutoff,
+  logfc_cutoff = settings$logfc_cutoff,
+  n_labels = settings$n_labels
 )
 
 # ==========================================
-# Save Gene Ontology Results
+# Save DE Figures
+# ==========================================
+
+save_go_figures_edge_r(
+  go_results = go_results,
+  output_dir = output_dirs$go_figures,
+  experiment_name = settings$experiment_name,
+  n_terms = settings$go_n_terms
+)
+
+# ==========================================
+# Save GO Tables
 # ==========================================
 
 save_go_tables(
   go_results = go_results,
-  output_dir = output_dirs$go_tables
+  output_dir = output_dirs$go_tables,
+  experiment_name = settings$experiment_name
 )
 
 # ==========================================
-# Save Gene Ontology Figures
+# Save GO Figures
 # ==========================================
 
-save_go_figures_edgeR(
+save_go_figures_edge_r(
   go_results = go_results,
   output_dir = output_dirs$go_figures,
-  settings = settings,
-  run_name = run_name
+  experiment_name = settings$experiment_name
 )
 
 # Done

@@ -1,65 +1,182 @@
+
+# =================================
+# Make Output Directories
+# =================================
+# Create the directory structure
+# for saving analysis output
+
+make_output_dirs <- function(
+    analysis,
+    experiment_name,
+    subdirectories = NULL
+) {
+  
+  root_dir <- project_path(
+    "results",
+    analysis,
+    experiment_name
+  )
+  
+  dirs <- list(
+    root = root_dir
+  )
+  
+  if (!is.null(subdirectories)) {
+    
+    for (directory in subdirectories) {
+      
+      dirs[[directory]] <- file.path(
+        root_dir,
+        directory
+      )
+      
+    }
+    
+  }
+  
+  purrr::walk(
+    dirs,
+    dir.create,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
+  
+  invisible(dirs)
+  
+}
+
 # ====================================
-# Function 1: Save DE figures (EdgeR)
+# Save DE Figures (edgeR)
 # ====================================
 
-save_de_figures_edgeR <- function(
+save_de_figures_edge_r <- function(
     de_results,
     output_dir,
-    settings,
-    run_name = NULL
+    experiment_name,
+    fdr_cutoff,
+    logfc_cutoff,
+    n_labels
 ) {
   
   for (name in names(de_results)) {
     
-    comparison <- gsub("_vs_", " vs ", name)
+    comparison <- gsub(
+      "_vs_",
+      " vs ",
+      name
+    )
     
-    run_label <- if (!is.null(run_name)) {
-      gsub("_", " ", run_name)
-    } else {
-      NULL
-    }
+    title <- paste(
+      experiment_name,
+      comparison,
+      sep = " — "
+    )
     
-    title <- if (is.null(run_label)) {
-      comparison
-    } else {
-      paste(run_label, "—", comparison)
-    }
-    
-    p <- plot_volcano_edgeR(
+    p <- plot_volcano_edge_r(
       de_table = de_results[[name]],
       title = title,
-      fdr_cutoff = settings$fdr_cutoff,
-      logfc_cutoff = settings$logfc_cutoff,
-      n_labels = settings$n_labels
+      fdr_cutoff = fdr_cutoff,
+      logfc_cutoff = logfc_cutoff,
+      n_labels = n_labels
     )
     
     ggsave(
       filename = file.path(
         output_dir,
-        paste0(name, "_volcano.pdf")
+        paste0(
+          experiment_name,
+          "_",
+          name,
+          "_volcano.pdf"
+        )
       ),
       plot = p,
       width = 6,
       height = 5
     )
+    
   }
+  
+}
+
+# ===========================
+# Save DE tables (edgeR)
+# ===========================
+
+save_de_tables_edge_r <- function(
+    de_results,
+    output_dir,
+    experiment_name,
+    fdr_cutoff,
+    logfc_cutoff
+) {
+  
+  for (name in names(de_results)) {
+    
+    file_prefix <- paste(
+      experiment_name,
+      name,
+      sep = "_"
+    )
+    
+    # Save complete DE results.
+    write.csv(
+      de_results[[name]],
+      file = file.path(
+        output_dir,
+        paste0(
+          file_prefix,
+          "_DE.csv"
+        )
+      )
+    )
+    
+    # Save significant DE results.
+    sig <- subset(
+      de_results[[name]],
+      FDR < fdr_cutoff &
+        abs(logFC) > logfc_cutoff
+    )
+    
+    write.csv(
+      sig,
+      file = file.path(
+        output_dir,
+        paste0(
+          file_prefix,
+          "_DE_sig.csv"
+        )
+      )
+    )
+    
+  }
+  
 }
 
 # ====================================
-# Function 2: Save GO figures (EdgeR)
+# Save GO Figures (edgeR)
 # ====================================
 
-save_go_figures_edgeR <- function(
+save_go_figures_edge_r <- function(
     go_results,
     output_dir,
     settings,
-    run_name = NULL
+    experiment_name = NULL
 ) {
   
   for (name in names(go_results)) {
     
-    comparison <- sub("_(up|down)$", "", name)
-    comparison <- gsub("_vs_", " vs ", comparison)
+    comparison <- sub(
+      "_(up|down)$",
+      "",
+      name
+    )
+    
+    comparison <- gsub(
+      "_vs_",
+      " vs ",
+      comparison
+    )
     
     direction <- ifelse(
       grepl("_up$", name),
@@ -67,16 +184,33 @@ save_go_figures_edgeR <- function(
       "Down-regulated genes"
     )
     
-    run_label <- if (!is.null(run_name)) {
-      gsub("_", " ", run_name)
+    experiment_label <- if (!is.null(experiment_name)) {
+      gsub(
+        "_",
+        " ",
+        experiment_name
+      )
     } else {
       NULL
     }
     
-    title <- if (is.null(run_label)) {
-      paste(comparison, direction, sep = " — ")
+    title <- if (is.null(experiment_label)) {
+      
+      paste(
+        comparison,
+        direction,
+        sep = " — "
+      )
+      
     } else {
-      paste(run_label, comparison, direction, sep = " — ")
+      
+      paste(
+        experiment_label,
+        comparison,
+        direction,
+        sep = " — "
+      )
+      
     }
     
     p <- plot_go_edgeR(
@@ -85,8 +219,9 @@ save_go_figures_edgeR <- function(
       n_terms = settings$go_n_terms
     )
     
-    if (is.null(p))
+    if (is.null(p)) {
       next
+    }
     
     n_actual <- min(
       settings$go_n_terms,
@@ -94,7 +229,6 @@ save_go_figures_edgeR <- function(
     )
     
     ggsave(
-      
       filename = file.path(
         output_dir,
         paste0(
@@ -102,23 +236,21 @@ save_go_figures_edgeR <- function(
           "_GO.pdf"
         )
       ),
-      
       plot = p,
-      
       width = 10,
-      height = max(3.5, 0.4 * n_actual + 2)
-      
+      height = max(
+        3.5,
+        0.4 * n_actual + 2
+      )
     )
     
   }
-  
 }
-
 # ===========================
-# Function 3: Save DE tables (EdgeR)
+# Save DE Tables (edgeR)
 # ===========================
 
-save_de_tables_edgeR <- function(
+save_de_tables_edge_r <- function(
     de_results,
     output_dir,
     settings
@@ -126,132 +258,93 @@ save_de_tables_edgeR <- function(
   
   for (name in names(de_results)) {
     
+    file_prefix <- paste(
+      settings$experiment_name,
+      name,
+      sep = "_"
+    )
+    
     write.csv(
       de_results[[name]],
-      
-      file.path(
+      file = file.path(
         output_dir,
-        paste0(name, "_DE.csv")
+        paste0(
+          file_prefix,
+          "_DE.csv"
+        )
       )
-      
     )
     
     sig <- subset(
-      
       de_results[[name]],
-      
       FDR < settings$fdr_cutoff &
         abs(logFC) > settings$logfc_cutoff
-      
     )
     
     write.csv(
       sig,
-      
-      file.path(
+      file = file.path(
         output_dir,
-        paste0(name, "_DE_sig.csv")
+        paste0(
+          file_prefix,
+          "_DE_sig.csv"
+        )
       )
-      
     )
     
   }
-  
 }
 
 # =========================
-# Function 4: Save GO tables
+# Save GO Tables
 # =========================
 
 save_go_tables <- function(
     go_results,
-    output_dir
+    output_dir,
+    experiment_name
 ) {
   
   for (name in names(go_results)) {
     
-    if (is.null(go_results[[name]]))
+    if (is.null(go_results[[name]])) {
       next
+    }
     
-    go_df <- as.data.frame(go_results[[name]])
+    go_df <- as.data.frame(
+      go_results[[name]]
+    )
     
-    go_df$GeneRatio <- as.character(go_df$GeneRatio)
-    go_df$BgRatio <- as.character(go_df$BgRatio)
+    go_df$GeneRatio <- as.character(
+      go_df$GeneRatio
+    )
+    
+    go_df$BgRatio <- as.character(
+      go_df$BgRatio
+    )
+    
+    file_prefix <- paste(
+      experiment_name,
+      name,
+      sep = "_"
+    )
     
     writexl::write_xlsx(
       go_df,
       path = file.path(
         output_dir,
-        paste0(name, "_GO.xlsx")
+        paste0(
+          file_prefix,
+          "_GO.xlsx"
+        )
       )
     )
     
   }
-  
-}
-
-
-# =================================
-# Function 5: Output Directories
-# =================================
-# Create the directory structure
-# for saving analysis output
-
-make_output_dirs <- function(
-    analysis,
-    run_name
-) {
-  
-  dirs <- list(
-    
-    de_tables = project_path(
-      "results",
-      analysis,
-      "DE",
-      "tables",
-      run_name
-    ),
-    
-    de_figures = project_path(
-      "results",
-      analysis,
-      "DE",
-      "figures",
-      run_name
-    ),
-    
-    go_tables = project_path(
-      "results",
-      analysis,
-      "GO",
-      "tables",
-      run_name
-    ),
-    
-    go_figures = project_path(
-      "results",
-      analysis,
-      "GO",
-      "figures",
-      run_name
-    )
-    
-  )
-  
-  purrr::walk(
-    dirs,
-    dir.create,
-    recursive = TRUE,
-    showWarnings = FALSE
-    
-  )
-  
-  invisible(dirs)
-  
 }
 
 # ======================================
-# Function 6: Save DE Figures (Seurat)
+# Save DE Figures (Seurat)
 # ======================================
 save_de_figures_seurat <- function(
     de_results,
@@ -286,7 +379,7 @@ save_de_figures_seurat <- function(
 }
 
 # ======================================
-# Function 7: Save GO Figures (Seurat)
+# Save GO Figures (Seurat)
 # ======================================
 
 save_go_figures_seurat <- function(
@@ -347,7 +440,7 @@ save_go_figures_seurat <- function(
 }
 
 # ====================================
-# Function 8: Save DE Tables (Seurat)
+# Save DE Tables (Seurat)
 # ====================================
 
 save_de_tables_seurat <- function(
@@ -388,7 +481,7 @@ save_de_tables_seurat <- function(
 }
 
 # ======================================
-# Function 9: Save DE Heatmap (Seurat)
+# Save DE Heatmap (Seurat)
 # ======================================
 
 save_de_heatmap_seurat <- function(

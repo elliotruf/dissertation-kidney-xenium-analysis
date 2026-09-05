@@ -1,10 +1,10 @@
 
 # =======================================
-# Function 1: Volcano Plot (EdgeR)
+# Volcano Plot (EdgeR)
 # =======================================
 # Construct a volcano plot from a
 # differential expression results table.
-plot_volcano_edgeR <- function(
+plot_volcano_edge_r <- function(
     de_table,
     title = NULL,
     fdr_cutoff = 0.05,
@@ -136,7 +136,7 @@ plot_volcano_edgeR <- function(
 }
   
 # =======================================
-# Function 2: GO Dotplot (EdgeR)
+# GO Dotplot (EdgeR)
 # =======================================
 # Construct a Gene Ontology enrichment
 # dotplot.
@@ -206,7 +206,7 @@ plot_go_edgeR <- function(
 }
 
 # =======================================
-# Function 3: Volcano Plot (Seurat)
+# Volcano Plot (Seurat)
 # =======================================
 
 plot_volcano_seurat <- function(
@@ -337,7 +337,7 @@ plot_volcano_seurat <- function(
 }
 
 # ===================================
-# Function 4: GO Dotplot (Seurat)
+# GO Dotplot (Seurat)
 # ===================================
 plot_go_seurat <- function(
     go_result,
@@ -413,7 +413,7 @@ plot_go_seurat <- function(
 }
 
 # =======================================
-# Function 5: Top DE Genes Bar Chart (Seurat)
+# Top DEGs Bar Chart (Seurat)
 # =======================================
 # Ranks genes by effect size (avg_log2FC) rather than p-value, since
 # per-cell Wilcoxon tests on large Xenium cell counts saturate p_val_adj.
@@ -563,7 +563,7 @@ plot_top_genes_bar <- function(
 }
 
 # ======================================================
-# Function 6: DE Gene Heatmap Across Time Points (Seurat)
+# DE Gene Heatmap Across Time Points (Seurat)
 # ======================================================
 # Uses the same significance/effect-size/pct filtering logic as
 # plot_top_genes_bar() to build the gene set, so the two plots stay
@@ -782,7 +782,7 @@ plot_de_heatmap <- function(
 }
 
 # ==================================================
-# Function 7: Cell Composition Stacked Bar Chart (Broad)
+# Cell Composition Stacked Bar Chart (Broad)
 # ==================================================
 
 plot_cell_composition_broad <- function(
@@ -811,7 +811,7 @@ plot_cell_composition_broad <- function(
   }
 
 # =========================================================
-# Function 8: Cell Composition Stacked Bar Chart (Whole)
+# Cell Composition Stacked Bar Chart (Whole)
 # =========================================================
 
 plot_cell_composition_whole <- function(
