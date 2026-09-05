@@ -157,14 +157,22 @@ save_de_tables_edge_r <- function(
 # Save GO Figures (edgeR)
 # ====================================
 
+# ====================================
+# Save GO Figures (edgeR)
+# ====================================
+
 save_go_figures_edge_r <- function(
     go_results,
     output_dir,
-    settings,
-    experiment_name = NULL
+    experiment_name,
+    n_terms
 ) {
   
   for (name in names(go_results)) {
+    
+    if (is.null(go_results[[name]])) {
+      next
+    }
     
     comparison <- sub(
       "_(up|down)$",
@@ -184,39 +192,17 @@ save_go_figures_edge_r <- function(
       "Down-regulated genes"
     )
     
-    experiment_label <- if (!is.null(experiment_name)) {
-      gsub(
-        "_",
-        " ",
-        experiment_name
-      )
-    } else {
-      NULL
-    }
-    
-    title <- if (is.null(experiment_label)) {
-      
-      paste(
-        comparison,
-        direction,
-        sep = " — "
-      )
-      
-    } else {
-      
-      paste(
-        experiment_label,
-        comparison,
-        direction,
-        sep = " — "
-      )
-      
-    }
+    title <- paste(
+      experiment_name,
+      comparison,
+      direction,
+      sep = " — "
+    )
     
     p <- plot_go_edgeR(
       go_results[[name]],
       title = title,
-      n_terms = settings$go_n_terms
+      n_terms = n_terms
     )
     
     if (is.null(p)) {
@@ -224,7 +210,7 @@ save_go_figures_edge_r <- function(
     }
     
     n_actual <- min(
-      settings$go_n_terms,
+      n_terms,
       nrow(as.data.frame(go_results[[name]]))
     )
     
@@ -232,6 +218,8 @@ save_go_figures_edge_r <- function(
       filename = file.path(
         output_dir,
         paste0(
+          experiment_name,
+          "_",
           name,
           "_GO.pdf"
         )
@@ -245,54 +233,7 @@ save_go_figures_edge_r <- function(
     )
     
   }
-}
-# ===========================
-# Save DE Tables (edgeR)
-# ===========================
-
-save_de_tables_edge_r <- function(
-    de_results,
-    output_dir,
-    settings
-) {
   
-  for (name in names(de_results)) {
-    
-    file_prefix <- paste(
-      settings$experiment_name,
-      name,
-      sep = "_"
-    )
-    
-    write.csv(
-      de_results[[name]],
-      file = file.path(
-        output_dir,
-        paste0(
-          file_prefix,
-          "_DE.csv"
-        )
-      )
-    )
-    
-    sig <- subset(
-      de_results[[name]],
-      FDR < settings$fdr_cutoff &
-        abs(logFC) > settings$logfc_cutoff
-    )
-    
-    write.csv(
-      sig,
-      file = file.path(
-        output_dir,
-        paste0(
-          file_prefix,
-          "_DE_sig.csv"
-        )
-      )
-    )
-    
-  }
 }
 
 # =========================
