@@ -1,5 +1,23 @@
-# Script for the comparison of a Seurat object's cell type composition
-# By fine- or broad-grained annotations.
+# ==========================================
+# Whole-Kidney Cell Composition Analysis
+# ==========================================
+#
+# Calculates cell type composition across time points for
+# a selected experimental condition
+# 
+# Cell type analysis can be performed at:
+#   - broad level (PT, Stroma, Vascular, Immune, etc.)
+#   - fine level 
+#   - fine level within one broad cell type (ex: all fine types within PT)
+#
+# Before running:
+# - Set the experiment name.
+# - Set the Seurat object.
+# - Set the experimental conditions (column info is stored in, and desired condition)
+# - Set the analysis level (broad, fine, within_broad)
+# - Set the desired broad cell type (if using within_broad level)
+# - Set the metadata columns storing broad and fine cell type columns, and time point
+# - Set the time point order (Control, 24hrs, 48hrs, etc.)
 
 # ========================
 # User Settings
@@ -7,8 +25,8 @@
 
 settings <- list(
   
-  # Dataset
-  dataset_name = "xen2diet",
+  # Name used for output directories and files
+  experiment_name = "Xen2",
   
   # Seurat object
   seurat_obj = file.path(
@@ -16,33 +34,41 @@ settings <- list(
     "xen2diet.rds"
   ),
   
-  # Experimental group
-  group_column = "sample_id",
+  # Experimental condition
+  # Examples:
+  #   Xen1: condition_variable = "sex"
+  #         condition_value = "Female"
+  #
+  #   Xen2: condition_variable = "sample_id"
+  #         condition_value = "wildType"
+  condition_variable = "sample_id",
+  condition_value = "wildType",
   
-  # Cell type analysis level
-  celltype_level = "broad",
-  # "broad" = all broad cell types
-  # "fine" = all fine cell types
+  # Cell-type analysis level
+  #
+  # "broad"       = all broad cell types
+  # "fine"        = all fine cell types
   # "within_broad" = fine cell types within one broad type
+  cell_type_level = "within_broad",
   
   # Broad cell type to analyse when using "within_broad"
-  parent_celltype = NULL,
+  parent_cell_type = "Stroma",
   
   # Metadata columns
-  fine_celltype_column = "cell_type",
-  broad_celltype_column = "broad_celltype",
-  timepoint_column = "time_point",
+  fine_cell_type_column = "cell_type",
+  broad_cell_type_column = "broad_cell_type",
+  time_point_variable = "time_point",
   
-  # Order of time points for display
-  timepoint_order = c(
-    "sham",
+  # Time-point order for display
+  time_point_order = c(
+    "Naive",
     "24h",
     "7d",
     "14d",
     "28d"
   )
-  
 )
+
 
 # =========================
 # Dependencies
@@ -53,8 +79,9 @@ library(ggplot2)
 library(scales)
 library(tidyverse)
 
-source("scripts/R_scripts/helpers/project_paths_v3.R")
-source("scripts/R_scripts/helpers/celltype_functions_v3.R")
+source("scripts/R_scripts/helpers/project_paths.R")
+source("scripts/R_scripts/helpers/cell_type_functions.R")
+source("scripts/R_scripts/helpers/output_functions.R")
 
 # ===============================
 # Load Seurat Object
@@ -73,40 +100,15 @@ cat(
 )
 
 # ===============================
-# Assign Broad Cell Types
+# Check required metadata
 # ===============================
 
-message("Assigning broad cell types...")
-
-seurat_obj <- add_broad_celltypes(
-  seurat_obj,
-  fine_column = settings$fine_celltype_column
-)
-
-# ===============================
-# Prepare data
-# ===============================
 meta <- seurat_obj[[]]
 
-meta$time_point <- factor(
-  meta[[settings$timepoint_column]],
-  levels = settings$timepoint_order
-)
-
-meta <- subset(
-  meta,
-  !is.na(time_point)
-)
-
-# ===============================
-# Check Required Columns
-# ===============================
-
 required_columns <- c(
-  settings$group_column,
-  settings$timepoint_column,
-  settings$fine_celltype_column,
-  settings$broad_celltype_column
+  settings$condition_variable,
+  settings$time_point_variable,
+  settings$fine_cell_type_column
 )
 
 missing_columns <- setdiff(
@@ -115,159 +117,238 @@ missing_columns <- setdiff(
 )
 
 if (length(missing_columns) > 0) {
-  
   stop(
     "Missing required metadata columns: ",
+    paste(missing_columns, collapse = ", ")
+  )
+}
+
+
+# ========================
+# Assign Broad Cell Types
+# ========================
+
+message("Assigning broad cell types...")
+
+seurat_obj <- add_broad_cell_types(
+  seurat_obj,
+  fine_column = settings$fine_cell_type_column
+)
+
+meta <- seurat_obj[[]]
+
+# ========================
+# Check Condition
+# ========================
+
+available_conditions <- unique(
+  meta[[settings$condition_variable]]
+)
+
+if (!settings$condition_value %in% available_conditions) {
+  stop(
+    "Condition value '",
+    settings$condition_value,
+    "' not found in ",
+    settings$condition_variable,
+    ". Available values are: ",
     paste(
-      missing_columns,
+      available_conditions,
       collapse = ", "
     )
   )
-  
 }
 
-# ===============================
-# Select Cell Type Analysis
-# ===============================
+# ========================
+# Prepare Seurat Object
+# ========================
 
-if (settings$celltype_level == "broad") {
+condition_cells <- seurat_obj[[]][[
+  settings$condition_variable
+]]
+
+seurat_obj <- subset(
+  seurat_obj,
+  cells = rownames(seurat_obj[[]])[
+    condition_cells == settings$condition_value
+  ]
+)
+
+seurat_obj[[settings$time_point_variable]] <- factor(
+  seurat_obj[[]][[
+    settings$time_point_variable
+  ]],
+  levels = settings$time_point_order
+)
+
+# ========================
+# Select Cell-Type Analysis
+# ========================
+
+if (settings$cell_type_level == "broad") {
   
-  message("Analysing broad cell type composition...")
+  message(
+    "Analysing broad cell-type composition..."
+  )
   
-  meta$celltype_for_plot <-
-    meta[[settings$broad_celltype_column]]
+  composition <- summarise_whole_data(
+    seurat_obj = seurat_obj,
+    condition_col = settings$condition_variable,
+    time_col = settings$time_point_variable,
+    broad_col = settings$broad_cell_type_column,
+    fine_col = settings$fine_cell_type_column
+  )
+  
+  plot_data <- composition$whole_composition_broad
+  
+  cell_type_column <- settings$broad_cell_type_column
+  
+  plot_data <- plot_data %>%
+    filter(
+      !is.na(.data[[cell_type_column]]),
+      .data[[cell_type_column]] != ""
+    )
   
   plot_title <- "Broad cell-type composition"
   
-  plot_subtitle <- settings$dataset_name
-  
   legend_title <- "Broad cell type"
   
-  output_name <- paste0(
-    settings$dataset_name,
-    "_broad_celltype_composition"
+  output_name <- paste(
+    settings$experiment_name,
+    settings$condition_value,
+    "broad_celltype_composition",
+    sep = "_"
   )
   
-}
-
-if (settings$celltype_level == "fine") {
+} else if (settings$cell_type_level == "fine") {
   
-  message("Analysing fine cell type composition...")
+  message(
+    "Analysing fine cell-type composition..."
+  )
   
-  meta$celltype_for_plot <-
-    meta[[settings$fine_celltype_column]]
+  composition <- summarise_whole_data(
+    seurat_obj = seurat_obj,
+    condition_col = settings$condition_variable,
+    time_col = settings$time_point_variable,
+    broad_col = settings$broad_cell_type_column,
+    fine_col = settings$fine_cell_type_column
+  )
+  
+  plot_data <- composition$whole_composition_fine
+  
+  cell_type_column <- settings$fine_cell_type_column
+  
+  plot_data <- plot_data %>%
+    filter(
+      !is.na(.data[[cell_type_column]]),
+      .data[[cell_type_column]] != ""
+    )
   
   plot_title <- "Fine cell-type composition"
   
-  plot_subtitle <- settings$dataset_name
-  
   legend_title <- "Fine cell type"
   
-  output_name <- paste0(
-    settings$dataset_name,
-    "_fine_celltype_composition"
+  output_name <- paste(
+    settings$experiment_name,
+    settings$condition_value,
+    "fine_celltype_composition",
+    sep = "_"
   )
   
-}
-
-if (settings$celltype_level == "within_broad") {
+} else if (settings$cell_type_level == "within_broad") {
+  
+  if (is.null(settings$parent_cell_type)) {
+    stop(
+      "parent_cell_type must be specified when ",
+      "cell_type_level = 'within_broad'."
+    )
+  }
   
   message(
-    "Analysing fine cell type composition within ",
-    settings$parent_celltype,
+    "Analysing fine cell-type composition within ",
+    settings$parent_cell_type,
     "..."
   )
   
-  meta <- subset(
-    meta,
-    meta[[settings$broad_celltype_column]] ==
-      settings$parent_celltype
+  seurat_obj <- subset_cell_type(
+    seurat_obj = seurat_obj,
+    cell_type = settings$parent_cell_type,
+    column = settings$broad_cell_type_column
   )
   
-  meta$celltype_for_plot <-
-    meta[[settings$fine_celltype_column]]
+  composition <- summarise_whole_data(
+    seurat_obj = seurat_obj,
+    condition_col = settings$condition_variable,
+    time_col = settings$time_point_variable,
+    broad_col = settings$broad_cell_type_column,
+    fine_col = settings$fine_cell_type_column
+  )
+  
+  plot_data <- composition$whole_composition_fine
+  
+  cell_type_column <- settings$fine_cell_type_column
+  
+  plot_data <- plot_data %>%
+    filter(
+      !is.na(.data[[cell_type_column]]),
+      .data[[cell_type_column]] != ""
+    )
   
   plot_title <- paste(
     "Fine cell-type composition within",
-    settings$parent_celltype
+    settings$parent_cell_type
   )
-  
-  plot_subtitle <- settings$dataset_name
   
   legend_title <- "Fine cell type"
   
-  output_name <- paste0(
-    settings$dataset_name,
-    "_",
-    paste(
-      sort(unique(meta[[settings$group_column]])),
-      collapse = "_"
-    ),
-    "_within_",
-    settings$parent_celltype,
-    "_fine_celltype_composition"
+  output_name <- paste(
+    settings$experiment_name,
+    settings$condition_value,
+    settings$parent_cell_type,
+    "fine_celltype_composition",
+    sep = "_"
   )
   
+} else {
+  
+  stop(
+    "Invalid cell_type_level: '",
+    settings$cell_type_level,
+    "'. Use 'broad', 'fine', or 'within_broad'."
+  )
 }
 
-# ===============================
-# Calculate Cell Composition
-# ===============================
 
-plot_data <- meta %>%
-  filter(
-    !is.na(.data[[settings$group_column]]),
-    !is.na(celltype_for_plot),
-    celltype_for_plot != ""
-  ) %>%
-  count(
-    .data[[settings$group_column]],
-    time_point,
-    celltype_for_plot,
-    name = "cells"
-  ) %>%
-  group_by(
-    .data[[settings$group_column]],
-    time_point
-  ) %>%
-  mutate(
-    proportion = cells / sum(cells)
-  ) %>%
-  ungroup()
-
-# ===============================
+# ========================
 # Plot Cell Composition
-# ===============================
+# ========================
 
-p_celltypeComposition <- ggplot(
+p_celltype_composition <- ggplot(
   plot_data,
   aes(
-    x = time_point,
+    x = .data[[settings$time_point_variable]],
     y = proportion,
-    fill = celltype_for_plot
+    fill = .data[[cell_type_column]]
   )
 ) +
-  
   geom_col() +
-  
-  facet_wrap(
-    as.formula(
-      paste("~", settings$group_column)
-    )
+  scale_x_discrete(
+    limits = settings$time_point_order
   ) +
-  
   scale_y_continuous(
     labels = percent_format()
   ) +
-  
   labs(
     x = "Time point",
     y = "Cell proportion",
     fill = legend_title,
     title = plot_title,
-    subtitle = plot_subtitle
+    subtitle = paste(
+      settings$experiment_name,
+      settings$condition_value,
+      sep = " — "
+    )
   ) +
-  
   theme_classic() +
   theme(
     legend.position = "bottom",
@@ -280,63 +361,44 @@ p_celltypeComposition <- ggplot(
     )
   )
 
-# ===============================
-# Save Results
-# ===============================
+# ========================
+# Create Output Directories
+# ========================
 
-experiment_dir <- file.path(
-  "results",
-  "cell_composition",
-  settings$dataset_name
+output_dirs <- make_output_dirs(
+  analysis = "cell_composition",
+  experiment_name = settings$experiment_name,
+  subdirectories = c(
+    "figures",
+    "tables"
+  )
 )
 
-figure_dir <- file.path(
-  experiment_dir,
-  "figures"
-)
-
-table_dir <- file.path(
-  experiment_dir,
-  "tables"
-)
-
-dir.create(
-  figure_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
-
-dir.create(
-  table_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
-
-# ===============================
+# ========================
 # Save Plot
-# ===============================
+# ========================
 
 ggsave(
   filename = file.path(
-    figure_dir,
+    output_dirs$figures,
     paste0(
       output_name,
       ".pdf"
     )
   ),
-  plot = p_celltypeComposition,
+  plot = p_celltype_composition,
   width = 8,
   height = 9
 )
 
-# ===============================
+# ========================
 # Save Composition Table
-# ===============================
+# ========================
 
 write.csv(
   plot_data,
   file = file.path(
-    table_dir,
+    output_dirs$tables,
     paste0(
       output_name,
       ".csv"
@@ -346,8 +408,4 @@ write.csv(
 )
 
 # Done!
-
-message(
-  "Done! Results saved using prefix: ",
-  output_name
-)
+message("Done!")

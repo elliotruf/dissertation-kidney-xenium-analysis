@@ -168,13 +168,12 @@ summarise_whole_data <- function(
     seurat_obj,
     condition_col = "sex",
     time_col = "time_point",
-    broad_col = "broad_celltype",
+    broad_col = "broad_cell_type",
     fine_col = "cell_type"
 ) {
   
   meta <- seurat_obj[[]]
   
-  # Check required columns exist
   required_cols <- c(
     condition_col,
     time_col,
@@ -189,21 +188,17 @@ summarise_whole_data <- function(
   
   if (length(missing_cols) > 0) {
     stop(
-      paste(
-        "Missing metadata columns:",
-        paste(missing_cols, collapse = ", ")
-      )
+      "Missing metadata columns: ",
+      paste(missing_cols, collapse = ", ")
     )
   }
   
-  # Remove cells with missing condition or time-point metadata
   meta <- meta %>%
     filter(
       !is.na(.data[[condition_col]]),
       !is.na(.data[[time_col]])
     )
   
-  # Total cells per condition and time point
   dataset_summary <- meta %>%
     group_by(
       .data[[condition_col]],
@@ -214,7 +209,6 @@ summarise_whole_data <- function(
       .groups = "drop"
     )
   
-  # Broad cell-type composition
   whole_composition_broad <- meta %>%
     count(
       .data[[condition_col]],
@@ -231,7 +225,6 @@ summarise_whole_data <- function(
     ) %>%
     ungroup()
   
-  # Fine cell-type composition
   whole_composition_fine <- meta %>%
     count(
       .data[[condition_col]],
@@ -248,7 +241,6 @@ summarise_whole_data <- function(
     ) %>%
     ungroup()
   
-  # Fine-to-broad annotation lookup
   lookup <- meta %>%
     distinct(
       .data[[fine_col]],
@@ -259,7 +251,7 @@ summarise_whole_data <- function(
     dataset_summary = dataset_summary,
     whole_composition_broad = whole_composition_broad,
     whole_composition_fine = whole_composition_fine,
-    celltype_lookup = lookup
+    lookup = lookup
   )
 }
 
@@ -466,34 +458,6 @@ run_all_go_seurat <- function(
   }
   
   go_results
-  
-}
-
-# ==========================================
-# Function: Run Name
-# ==========================================
-# Generate a unique identifier for the
-# current cell type analysis.
-
-get_celltype_run_name <- function(
-    settings
-) {
-  
-  run_name <- paste(
-    settings$experiment,
-    settings$celltype,
-    sep = "_"
-  )
-  
-  if (!is.null(settings$condition)) {
-    run_name <- paste(
-      run_name,
-      settings$condition,
-      sep = "_"
-    )
-  }
-  
-  run_name
   
 }
 
