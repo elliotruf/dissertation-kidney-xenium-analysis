@@ -22,7 +22,7 @@
 
 settings <- list(
   
-  # Dataset
+  # Name used for output directories and files
   experiment_name = "Xen1",
   
   # Seurat Object for analysis
