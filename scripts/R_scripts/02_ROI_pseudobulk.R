@@ -1,7 +1,8 @@
 # ROI Pseudobulk
 #
-# Generates pseudobulk profiles for 
-# 
+# Generates ROI-level pseudobulk profiles,
+# performs differential expression and Gene Ontology analysis,
+# and saves volcano plot visualisations and tables.
 #
 # Before running:
 # - Set the ROI object to the desired .rds file.
@@ -23,14 +24,15 @@ settings <- list(
     "results",
     "ROI_extraction",
     "Xen1_Male_Cortex",
-    "objects/Xen1_Male_Cortex_roi_objects.rds"
+    "objects",
+    "Xen1_Male_Cortex_roi_objects.rds"
   ),
   
   # Name used for output directories and files
   experiment_name = "Xen1_Male_Cortex",
   
   # Differential expression
-  condition_variable = "condition",   # What is the experimental condition variable called? ## NOT CURRENTLY USED
+  condition_variable = "condition",   # What is the experimental condition variable called? 
   time_point_variable = "time_point", # What is the time point variable called?
   reference_time_point = "1wk",      # What will the other time points be compared to?
   

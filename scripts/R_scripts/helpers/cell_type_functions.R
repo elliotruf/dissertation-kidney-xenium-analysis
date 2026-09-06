@@ -5,7 +5,7 @@
 # Collapse fine cell type annotations into
 # broader types for downstream analyses
 
-assign_broad_celltypes <- function(cell_type) {
+assign_broad_cell_types <- function(cell_type) {
   
   dplyr::case_when(
     
@@ -109,14 +109,14 @@ assign_broad_celltypes <- function(cell_type) {
 # Add broad cell type annotations if they
 # are not already present.
 
-add_broad_celltypes <- function(
+add_broad_cell_types <- function(
     seurat_obj,
     fine_column = "cell_type"
 ) {
     
-    seurat_obj$broad_celltype <-
+    seurat_obj$broad_cell_type <-
       
-      assign_broad_celltypes(
+      assign_broad_cell_types(
         seurat_obj[[fine_column, drop = TRUE]]
       )
   
@@ -130,18 +130,23 @@ add_broad_celltypes <- function(
 # Extract a single broad cell type for
 # downstream analysis.
 
-subset_celltype <- function(
+subset_cell_type <- function(
     seurat_obj,
-    celltype,
-    column = "broad_celltype"
+    cell_type,
+    column = "broad_cell_type"
 ) {
   
-  if (!column %in% colnames(seurat_obj@meta.data))
-    stop(paste("Column", column, "not found."))
+  if (!column %in% colnames(seurat_obj@meta.data)) {
+    stop(
+      "Column ",
+      column,
+      " not found."
+    )
+  }
   
   cells <- rownames(
     seurat_obj@meta.data[
-      seurat_obj@meta.data[[column]] == celltype,
+      seurat_obj@meta.data[[column]] == cell_type,
       ,
       drop = FALSE
     ]
@@ -151,7 +156,6 @@ subset_celltype <- function(
     seurat_obj,
     cells = cells
   )
-  
 }
 
 # ==========================================

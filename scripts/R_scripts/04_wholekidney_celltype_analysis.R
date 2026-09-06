@@ -1,4 +1,20 @@
-# DE and GO analysis according to broad cell type
+# ==========================================
+# Whole Kidney Cell Type DE and GO Analysis
+# ==========================================
+#
+# Subsets a Seurat object to a selected broad
+# cell population and condition, performs
+# differential expression across time points,
+# runs Gene Ontology analysis, and saves
+# tables and figures.
+#
+# Before running:
+# - Set the Seurat object.
+# - Set the cell population.
+# - Set the condition.
+# - Set the reference time point.
+# - Set the time point order.
+# - Set DE and GO thresholds.
 
 # ===================================
 # User Settings 
@@ -7,7 +23,7 @@
 settings <- list(
   
   # Dataset
-  experiment = "Xen1",
+  experiment_name = "Xen1",
   
   # Seurat Object for analysis
   seurat_obj = file.path(
@@ -16,19 +32,25 @@ settings <- list(
   ),
   
   # Cell type for analysis
-  celltype = "PT",
+  cell_type = "PT",
   # broad: "Stroma", "Immune", "PT", etc.
   # fine: 
   
-  celltype_column = "broad_celltype",
+  cell_type_variable = "broad_cell_type",
   # "broad_celltype" for broad types
   # "cell_type" for fine types
   
   # Differential expression
-  condition = "Female",
-  variable = "time_point",
-  reference = "1wk",
-  time_point_order = c("1wk", "2wk", "4wk", "12wk"),
+  condition_variable = "sex",
+  condition_value = "Male",
+  time_point_variable = "time_point",
+  reference_time_point = "1wk",
+  time_point_order = c(
+    "1wk",
+    "2wk",
+    "4wk",
+    "12wk"
+  ),
   
   # Assay
   assay = "Xenium",
@@ -47,8 +69,10 @@ settings <- list(
   
 )
 
+set.seed(1234)
+
 # ===============================
-# Packages
+# Dependencies
 # ===============================
 
 library(Seurat)
@@ -64,28 +88,32 @@ library(presto)
 library(readxl)
 
 source("scripts/R_scripts/helpers/project_paths.R")
+source("scripts/R_scripts/helpers/cell_type_functions.R")
+source("scripts/R_scripts/helpers/ROI_pseudobulk_functions.R")
 source("scripts/R_scripts/helpers/wholekidney_celltype_functions.R")
 source("scripts/R_scripts/helpers/plotting_functions.R")
 source("scripts/R_scripts/helpers/output_functions.R")
-source("scripts/R_scripts/helpers/pseudobulk_functions.R")
 
 # ===============================
-# Prepare object
+# Load Data
 # ===============================
 
 message("Loading data...")
+
 seurat_obj <- readRDS(
   project_path(settings$seurat_obj)
 )
 
-cat("Class:", class(seurat_obj), "\n")
+message(
+  "Loaded object: ",
+  class(seurat_obj)
+)
 
 if (inherits(seurat_obj, "Seurat")) {
   
-  cat(
-    "Number of cells:",
-    ncol(seurat_obj),
-    "\n"
+  message(
+    "Number of cells: ",
+    ncol(seurat_obj)
   )
   
 } else {
@@ -94,62 +122,81 @@ if (inherits(seurat_obj, "Seurat")) {
   
 }
 
-cat("Loaded object\n")
+# ===============================
+# Assign Broad Cell Types
+# ===============================
 
-seurat_obj <- add_broad_celltypes(
+message("Assigning broad cell types...")
+
+seurat_obj <- add_broad_cell_types(
   seurat_obj
 )
 
-cat("Added broad celltypes\n")
+message("Broad cell types assigned.")
 
-celltype_obj <- subset_celltype(
+# ===============================
+# Subset Cell Population
+# ===============================
+
+message("Subsetting cell population...")
+
+cell_type_obj <- subset_cell_type(
   seurat_obj,
-  settings$celltype
+  cell_type = settings$cell_type,
+  column = settings$cell_type_variable
 )
 
-celltype_obj <- subset(
-  celltype_obj,
-  subset = sample_id == settings$condition
+message(
+  "Cells after cell population subset: ",
+  ncol(cell_type_obj)
 )
 
-cat(
-  "Subset complete:",
-  ncol(celltype_obj),
-  "cells\n"
+# ===============================
+# Subset Condition
+# ===============================
+
+message("Subsetting condition...")
+
+cell_condition <- cell_type_obj[[]][[settings$condition_variable]]
+
+cell_type_obj <- subset(
+  cell_type_obj,
+  cells = colnames(cell_type_obj)[
+    cell_condition == settings$condition_value
+  ]
 )
 
-cat("Starting DE\n")
-
-cell_summary <- summarise_celltype(
-  celltype_obj,
-  sample_col = "sample_id",
-  variable = settings$variable
-)
-
-run_name <- get_celltype_run_name(
-  settings
-)
-
-output_dirs <- make_output_dirs(
-  analysis = "wholekidney_broad_celltype",
-  run_name = run_name
+message(
+  "Cells after condition subset: ",
+  ncol(cell_type_obj)
 )
 
 # ===============================
 # Differential Expression
 # ===============================
 
-message("Running differential expression analysis...")
-celltype_obj[[settings$variable]] <- relevel(
-  factor(celltype_obj[[settings$variable]][,1]), 
-  ref = settings$reference
+message("Preparing time point metadata...")
+
+cell_type_obj[[settings$time_point_variable]] <- relevel(
+  factor(
+    cell_type_obj[[settings$time_point_variable]][, 1],
+    levels = settings$time_point_order
+  ),
+  ref = settings$reference_time_point
 )
 
-comparisons <- levels(celltype_obj[[settings$variable]][,1])
+comparisons <- levels(
+  cell_type_obj[[settings$time_point_variable]][, 1]
+)
 
 comparisons <- setdiff(
   comparisons,
-  settings$reference
+  settings$reference_time_point
+)
+
+message(
+  "Time point comparisons: ",
+  paste(comparisons, collapse = ", ")
 )
 
 de_results <- list()
@@ -157,43 +204,51 @@ de_results <- list()
 for (comp in comparisons) {
   
   comparison_name <- paste0(
-    settings$condition,
+    settings$cell_type,
+    "_",
+    settings$condition_value,
     "_",
     comp,
     "_vs_",
-    settings$reference
+    settings$reference_time_point
   )
   
-  cat("Running:", comparison_name, "\n")
+  message(
+    "Running: ",
+    comparison_name
+  )
   
   de_results[[comparison_name]] <-
-    run_celltype_de(
-      celltype_obj,
-      ident1 = comp,
-      ident2 = settings$reference,
-      variable = settings$variable,
+    run_cell_type_de(
+      seurat_obj = cell_type_obj,
+      group_1 = comp,
+      group_2 = settings$reference_time_point,
+      group_variable = settings$time_point_variable,
       assay = settings$assay
     )
   
-  cat("Finished:", comparison_name, "\n")
+  message(
+    "Finished: ",
+    comparison_name
+  )
 }
 
 # ===============================
-# Gene Ontology
+# Gene Ontology Analysis
 # ===============================
 
 message("Running GO analysis...")
+
 # Build Xenium panel gene universe
 xenium_universe <- rownames(
-  LayerData(
+  SeuratObject::LayerData(
     seurat_obj,
     assay = settings$assay,
     layer = settings$layer
   )
 )
 
-# Run GO (Seurat)
-go_results <- run_all_go_seurat(
+go_results <- run_go_all_seurat(
   de_results = de_results,
   universe = xenium_universe,
   fdr_cutoff = settings$fdr_cutoff,
@@ -203,87 +258,82 @@ go_results <- run_all_go_seurat(
 )
 
 # ===============================
-# Figures
+# Make Output Directories
 # ===============================
 
-message("Creating figures...")
-# Stacked DEGs bar plots
-bar_plots <- lapply(
-  names(de_results),
-  function(name) {
-    
-    plot_top_genes_bar(
-      de_table = de_results[[name]],
-      title = name,
-      run_name = run_name,
-      fdr_cutoff = settings$fdr_cutoff,
-      logfc_cutoff = settings$logfc_cutoff
-    )
-  }
-)
-
-# GO plots
-go_plots <- purrr::imap(
-  go_results,
-  ~ plot_go_seurat(
-    .x,
-    title = .y
+output_dirs <- make_output_dirs(
+  analysis = "whole_kidney_cell_type",
+  experiment_name = settings$experiment_name,
+  subdirectories = c(
+    "de_tables",
+    "de_figures",
+    "go_tables",
+    "go_figures"
   )
 )
 
-# Plot DE Heatmap
-heatmap <- plot_de_heatmap(
-  de_results,
-  seurat_obj = celltype_obj,
-  group_by = settings$variable,
-  assay = settings$assay,
-  timepoint_order = settings$time_point_order
-)
-
-# =======================
+# ===============================
 # Save Outputs
-# =======================
+# ===============================
 
 message("Saving results...")
-# Save DE tables
+
+# DE tables
+
 save_de_tables_seurat(
-  de_results,
-  output_dirs$de_tables,
-  settings
+  de_results = de_results,
+  output_dir = output_dirs$de_tables,
+  experiment_name = settings$experiment_name,
+  condition_value = settings$condition_value,
+  fdr_cutoff = settings$fdr_cutoff,
+  logfc_cutoff = settings$logfc_cutoff
 )
 
-# Save DE figures
+# DE figures
+
 save_de_figures_seurat(
-  de_results,
-  output_dirs$de_figures,
-  settings,
+  de_results = de_results,
+  output_dir = output_dirs$de_figures,
+  experiment_name = settings$experiment_name,
+  condition_value = settings$condition_value,
+  fdr_cutoff = settings$fdr_cutoff,
+  logfc_cutoff = settings$logfc_cutoff
 )
 
-# Save GO tables
+# GO tables
+
 save_go_tables(
-  go_results,
-  output_dirs$go_tables
+  go_results = go_results,
+  output_dir = output_dirs$go_tables,
+  experiment_name = settings$experiment_name
 )
 
-# Save GO figures
+
+# GO figures
+
 save_go_figures_seurat(
-  go_results,
-  output_dirs$go_figures,
-  settings,
-  run_name
+  go_results = go_results,
+  output_dir = output_dirs$go_figures,
+  experiment_name = settings$experiment_name,
+  condition_value = settings$condition_value,
+  n_terms = settings$go_n_terms
 )
 
-# Save DE Heatmaps
+
+# DE heatmap
+
 save_de_heatmap_seurat(
-  de_results,
+  de_results = de_results,
   timepoint_order = settings$time_point_order,
   output_dir = output_dirs$de_figures,
-  settings = settings,
-  run_name = run_name,
-  seurat_obj = celltype_obj,
-  group_by = settings$variable,
-  assay = settings$assay
+  experiment_name = settings$experiment_name,
+  cell_type = settings$cell_type,
+  condition_value = settings$condition_value,
+  seurat_obj = cell_type_obj,
+  group_by = settings$time_point_variable,
+  assay = settings$assay,
+  fdr_cutoff = settings$fdr_cutoff,
+  logfc_cutoff = settings$logfc_cutoff
 )
 
-# Done!
 message("Done!")

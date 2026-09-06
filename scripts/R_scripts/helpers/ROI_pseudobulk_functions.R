@@ -94,7 +94,7 @@ build_pseudobulk <- function(
 prepare_de_metadata <- function(
     metadata,
     condition_variable,
-    timepoint_variable,
+    time_point_variable,
     reference_time_point
 ) {
   
@@ -102,24 +102,24 @@ prepare_de_metadata <- function(
   metadata[[condition_variable]] <-
     factor(metadata[[condition_variable]])
   
-  metadata[[timepoint_variable]] <-
-    factor(metadata[[timepoint_variable]])
+  metadata[[time_point_variable]] <-
+    factor(metadata[[time_point_variable]])
   
   # Check that the reference time point exists
-  if (!reference_time_point %in% levels(metadata[[timepoint_variable]])) {
+  if (!reference_time_point %in% levels(metadata[[time_point_variable]])) {
     stop(
       "Reference time point '",
       reference_time_point,
       "' not found in ",
-      timepoint_variable,
+      time_point_variable,
       "."
     )
   }
   
   # Set reference time point
-  metadata[[timepoint_variable]] <-
+  metadata[[time_point_variable]] <-
     relevel(
-      metadata[[timepoint_variable]],
+      metadata[[time_point_variable]],
       ref = reference_time_point
     )
   

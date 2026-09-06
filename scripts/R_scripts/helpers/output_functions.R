@@ -157,10 +157,6 @@ save_de_tables_edge_r <- function(
 # Save GO Figures (edgeR)
 # ====================================
 
-# ====================================
-# Save GO Figures (edgeR)
-# ====================================
-
 save_go_figures_edge_r <- function(
     go_results,
     output_dir,
@@ -243,7 +239,8 @@ save_go_figures_edge_r <- function(
 save_go_tables <- function(
     go_results,
     output_dir,
-    experiment_name
+    experiment_name,
+    condition_value = NULL
 ) {
   
   for (name in names(go_results)) {
@@ -264,11 +261,24 @@ save_go_tables <- function(
       go_df$BgRatio
     )
     
-    file_prefix <- paste(
-      experiment_name,
-      name,
-      sep = "_"
-    )
+    file_prefix <- if (is.null(condition_value)) {
+      
+      paste(
+        experiment_name,
+        name,
+        sep = "_"
+      )
+      
+    } else {
+      
+      paste(
+        experiment_name,
+        condition_value,
+        name,
+        sep = "_"
+      )
+      
+    }
     
     writexl::write_xlsx(
       go_df,
@@ -280,7 +290,6 @@ save_go_tables <- function(
         )
       )
     )
-    
   }
 }
 
@@ -290,27 +299,38 @@ save_go_tables <- function(
 save_de_figures_seurat <- function(
     de_results,
     output_dir,
-    settings,
-    run_name = NULL
+    experiment_name,
+    condition_value,
+    fdr_cutoff,
+    logfc_cutoff
 ) {
-  
   for (name in names(de_results)) {
-    
     comparison <- gsub("_vs_", " vs ", name)
-    comparison <- sub("^[^_]+_", "", comparison)
+    
+    title <- paste(
+      experiment_name,
+      comparison,
+      sep = " — "
+    )
     
     p <- plot_top_genes_bar(
       de_table = de_results[[name]],
-      title = comparison,
-      run_name = run_name,
-      fdr_cutoff = settings$fdr_cutoff,
-      logfc_cutoff = settings$logfc_cutoff
+      title = title,
+      fdr_cutoff = fdr_cutoff,
+      logfc_cutoff = logfc_cutoff
     )
+    
+    if (is.null(p)) next
     
     ggsave(
       filename = file.path(
         output_dir,
-        paste0(name, "_DEG_bar_plot.pdf")
+        paste0(
+          experiment_name,
+          "_",
+          name,
+          "_DEG_bar_plot.pdf"
+        )
       ),
       plot = p,
       width = 7,
@@ -322,21 +342,17 @@ save_de_figures_seurat <- function(
 # ======================================
 # Save GO Figures (Seurat)
 # ======================================
-
 save_go_figures_seurat <- function(
     go_results,
     output_dir,
-    settings,
-    run_name = NULL
+    experiment_name,
+    condition_value,
+    n_terms = 15
 ) {
-  
   for (name in names(go_results)) {
-    
-    print(names(de_results))
-    print(sapply(de_results, class))
+    if (is.null(go_results[[name]])) next
     
     comparison <- gsub("_vs_", " vs ", name)
-    comparison <- sub("^[^_]+_", "", comparison)
     
     direction <- ifelse(
       grepl("_up$", name),
@@ -344,151 +360,154 @@ save_go_figures_seurat <- function(
       "Down-regulated genes"
     )
     
-    run_label <- if (!is.null(run_name)) {
-      gsub("_", " ", run_name)
-    } else {
-      NULL
-    }
-    
-    title <- if (is.null(run_label)) {
-      paste(comparison, direction, sep = " — ")
-    } else {
-      paste(run_label, comparison, direction, sep = " — ")
-    }
-    
-    p <- plot_top_genes_bar(
-      de_table = de_results[[name]],
-      title = title,
-      fdr_cutoff = settings$fdr_cutoff,
-      logfc_cutoff = settings$logfc_cutoff
+    title <- paste(
+      experiment_name,
+      comparison,
+      direction,
+      sep = " — "
     )
     
-    if (is.null(p))
-      next
+    p <- plot_go_seurat(
+      go_result = go_results[[name]],
+      title = title,
+      n_terms = n_terms
+    )
+    
+    if (is.null(p)) next
     
     ggsave(
       filename = file.path(
         output_dir,
-        paste0(name, "_GO.pdf")
+        paste0(
+          experiment_name,
+          "_",
+          name,
+          "_GO.pdf"
+        )
       ),
       plot = p,
       width = 10,
       height = 7
     )
-    
   }
-  
 }
 
-# ====================================
+# ==========================
 # Save DE Tables (Seurat)
-# ====================================
-
+# ==========================
 save_de_tables_seurat <- function(
     de_results,
     output_dir,
-    settings
+    experiment_name,
+    condition_value,
+    fdr_cutoff,
+    logfc_cutoff
 ) {
-
   for (name in names(de_results)) {
-
+    
+    file_prefix <- paste(
+      experiment_name,
+      name,
+      sep = "_"
+    )
+    
     write.csv(
       de_results[[name]],
-      file.path(
+      file = file.path(
         output_dir,
-        paste0(name, "_DE.csv")
+        paste0(file_prefix, "_DE.csv")
       )
     )
-
+    
     sig <- subset(
-
       de_results[[name]],
-
-      p_val_adj < settings$fdr_cutoff &
-        abs(avg_log2FC) > settings$logfc_cutoff
-
+      p_val_adj < fdr_cutoff &
+        abs(avg_log2FC) > logfc_cutoff
     )
-
+    
     write.csv(
       sig,
-      file.path(
+      file = file.path(
         output_dir,
-        paste0(name, "_DE_sig.csv")
+        paste0(file_prefix, "_DE_sig.csv")
       )
     )
-
   }
-
 }
 
 # ======================================
 # Save DE Heatmap (Seurat)
 # ======================================
 
+# ======================================
+# Save DE Heatmap (Seurat)
+# ======================================
 save_de_heatmap_seurat <- function(
     de_results,
     timepoint_order,
     output_dir,
-    settings,
-    run_name = NULL,
-    avg_expr = NULL,     # supply this OR seurat_obj/group_by (see plot_de_heatmap)
-    seurat_obj = NULL,
-    group_by = NULL,
-    assay = NULL,
+    experiment_name,
+    cell_type,
+    condition_value,
+    seurat_obj,
+    group_by,
+    assay,
+    fdr_cutoff,
+    logfc_cutoff,
+    min_pct = 0.1,
+    n_genes_per_comparison = 20,
     slot = "data",
     width = 7,
     height = 10
 ) {
-  
-  run_label <- if (!is.null(run_name)) gsub("_", " ", run_name) else NULL
-  
-  title <- if (is.null(run_label)) {
-    "DE Genes Across Timecourse"
-  } else {
-    paste(run_label, "\u2014 DE Genes Across Timecourse")
-  }
+  title <- paste(
+    experiment_name,
+    cell_type,
+    condition_value,
+    "DE Genes Across Timecourse",
+    sep = " — "
+  )
   
   p <- plot_de_heatmap(
-    de_results   = de_results,
-    avg_expr     = avg_expr,
-    seurat_obj   = seurat_obj,
-    group_by     = group_by,
-    assay        = assay,
-    slot         = slot,
+    de_results = de_results,
+    seurat_obj = seurat_obj,
+    group_by = group_by,
+    assay = assay,
+    slot = slot,
     timepoint_order = timepoint_order,
-    title        = title,
-    fdr_cutoff   = settings$fdr_cutoff,
-    logfc_cutoff = settings$logfc_cutoff,
-    min_pct      = if (!is.null(settings$min_pct)) settings$min_pct else 0.1,
-    n_genes_per_comparison = if (!is.null(settings$n_genes_per_comparison)) {
-      settings$n_genes_per_comparison
-    } else {
-      20
-    }
+    title = title,
+    fdr_cutoff = fdr_cutoff,
+    logfc_cutoff = logfc_cutoff,
+    min_pct = min_pct,
+    n_genes_per_comparison = n_genes_per_comparison
   )
   
   if (is.null(p)) {
     warning(
-      "save_de_heatmap_seurat: plot_de_heatmap() returned NULL ",
-      "(no genes passed filtering across any comparison); heatmap not saved."
+      "save_de_heatmap_seurat: plot_de_heatmap() returned NULL; ",
+      "heatmap not saved."
     )
     return(invisible(NULL))
   }
   
-  out_name <- paste0(
-    if (!is.null(run_name)) paste0(run_name, "_") else "",
-    "DEG_heatmap.pdf"
-  )
-  
   ggsave(
-    filename = file.path(output_dir, out_name),
-    plot     = p,
-    width    = width,
-    height   = height
+    filename = file.path(
+      output_dir,
+      paste0(
+        experiment_name,
+        "_",
+        cell_type,
+        "_",
+        condition_value,
+        "_DEG_heatmap.pdf"
+      )
+    ),
+    plot = p,
+    width = width,
+    height = height
   )
   
   invisible(p)
-  
 }
 
 # =================================

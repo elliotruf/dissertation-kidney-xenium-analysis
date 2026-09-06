@@ -1,0 +1,193 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+# 3 images, bottom row centred
+```{r}
+library(magick)
+
+p1 <- image_read_pdf(
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_2wk_vs_1wk_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p2 <- image_read_pdf(
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_4wk_vs_1wk_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p3 <- image_read_pdf(
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_12wk_vs_1wk_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p1 <- image_annotate(p1, "A", location = "+30+30",
+                     size = 20, weight = 700)
+
+p2 <- image_annotate(p2, "B", location = "+30+30",
+                     size = 20, weight = 700)
+
+p3 <- image_annotate(p3, "C", location = "+30+30",
+                     size = 20, weight = 700)
+
+# Top row: A + B
+top_row <- image_append(
+  c(p1, p2),
+  stack = FALSE
+)
+
+# Centre C underneath
+bottom_row <- image_extent(
+  p3,
+  geometry = paste0(
+    image_info(top_row)$width,
+    "x",
+    image_info(p3)$height
+  ),
+  gravity = "center",
+  color = "white"
+)
+
+# Combine top and bottom rows
+final_figure <- image_append(
+  c(top_row, bottom_row),
+  stack = TRUE
+)
+# Save
+image_write(
+  final_figure,
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_DEG_bar_plot_comparison.png",
+  format = "png"
+)
+```
+
+```{r}
+lapply(de_results, function(x) {
+  sig <- x[x$FDR < 0.05, ]
+
+  c(
+    Total_DEGs = nrow(sig),
+    Upregulated = sum(sig$logFC > 0),
+    Downregulated = sum(sig$logFC < 0)
+  )
+})
+```
+
+# 4 images
+```{r}
+library(magick)
+
+p1 <- image_read_pdf(
+  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_24h_vs_Sham_volcano.pdf",
+  density = 600
+)
+
+p2 <- image_read_pdf(
+  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_7d_vs_sham_volcano.pdf",
+  density = 600
+)
+
+p3 <- image_read_pdf(
+  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_14d_vs_sham_volcano.pdf",
+  density = 600
+)
+
+p4 <- image_read_pdf(
+  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_28d_vs_sham_volcano.pdf",
+  density = 600
+)
+
+p1 <- image_annotate(p1, "A", location = "+30+30",
+                     size = 20, weight = 700)
+
+p2 <- image_annotate(p2, "B", location = "+30+30",
+                     size = 20, weight = 700)
+
+p3 <- image_annotate(p3, "C", location = "+30+30",
+                     size = 20, weight = 700)
+
+p4 <- image_annotate(p4, "D", location = "+30+30",
+                     size = 20, weight = 700)
+
+# Top row: A + B
+top_row <- image_append(
+  c(p1, p2),
+  stack = FALSE
+)
+
+# Bottom row: C + D
+bottom_row <- image_append(
+  c(p3, p4),
+  stack = FALSE
+)
+# Combine top and bottom rows
+final_figure <- image_append(
+  c(top_row, bottom_row),
+  stack = TRUE
+)
+# Save
+image_write(
+  final_figure,
+ "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_Comparison.pdf",
+  format = "pdf"
+)
+```
+
+# 3 images vertical
+```{r}
+library(magick)
+
+p1 <- image_read_pdf(
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_2wk_vs_1wk_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p2 <- image_read_pdf(
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_4wk_vs_1wk_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p3 <- image_read_pdf(
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_12wk_vs_1wk_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p1 <- image_annotate(
+  p1, "A",
+  location = "+30+30",
+  size = 20,
+  weight = 700
+)
+
+p2 <- image_annotate(
+  p2, "B",
+  location = "+30+30",
+  size = 20,
+  weight = 700
+)
+
+p3 <- image_annotate(
+  p3, "C",
+  location = "+30+30",
+  size = 20,
+  weight = 700
+)
+
+# Explicitly stack all three vertically
+final_figure <- image_append(
+  c(p1, p2, p3),
+  stack = TRUE
+)
+
+# Check dimensions
+image_info(final_figure)
+
+# Save
+image_write(
+  final_figure,
+  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_DEG_bar_plot_comparison.png",
+  format = "png"
+)
+```
