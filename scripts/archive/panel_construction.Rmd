@@ -9,17 +9,17 @@ editor_options:
 library(magick)
 
 p1 <- image_read_pdf(
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_2wk_vs_1wk_DEG_bar_plot.pdf",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Female_2wk_vs_1wk_DEG_bar_plot.pdf",
   density = 600
 )
 
 p2 <- image_read_pdf(
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_4wk_vs_1wk_DEG_bar_plot.pdf",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Female_4wk_vs_1wk_DEG_bar_plot.pdf",
   density = 600
 )
 
 p3 <- image_read_pdf(
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_12wk_vs_1wk_DEG_bar_plot.pdf",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Female_12wk_vs_1wk_DEG_bar_plot.pdf",
   density = 600
 )
 
@@ -58,7 +58,7 @@ final_figure <- image_append(
 # Save
 image_write(
   final_figure,
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_DEG_bar_plot_comparison.png",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Female_2wk_vs_1wk_DEG_bar_plot.pdf",
   format = "png"
 )
 ```
@@ -140,17 +140,17 @@ image_write(
 library(magick)
 
 p1 <- image_read_pdf(
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_2wk_vs_1wk_DEG_bar_plot.pdf",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Male_2wk_vs_1wk_DEG_bar_plot.pdf",
   density = 600
 )
 
 p2 <- image_read_pdf(
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_4wk_vs_1wk_DEG_bar_plot.pdf",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Male_4wk_vs_1wk_DEG_bar_plot.pdf",
   density = 600
 )
 
 p3 <- image_read_pdf(
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_12wk_vs_1wk_DEG_bar_plot.pdf",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Male_12wk_vs_1wk_DEG_bar_plot.pdf",
   density = 600
 )
 
@@ -187,7 +187,7 @@ image_info(final_figure)
 # Save
 image_write(
   final_figure,
-  "results/wholekidney_broad_celltype/DE/figures/Xen1_PT_Female/Female_DEG_bar_plot_comparison.png",
+  "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Male_DEG_bar_plot_comparison.png",
   format = "png"
 )
 ```

@@ -42,7 +42,7 @@ settings <- list(
   #   Xen2: condition_variable = "sample_id"
   #         condition_value = "wildType"
   condition_variable = "sample_id",
-  condition_value = "wildType",
+  condition_value = "knockOut",
   
   # Cell-type analysis level
   #
