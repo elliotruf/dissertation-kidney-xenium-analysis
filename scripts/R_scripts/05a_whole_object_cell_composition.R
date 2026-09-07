@@ -26,12 +26,12 @@
 settings <- list(
   
   # Name used for output directories and files
-  experiment_name = "Xen2",
+  experiment_name = "Xen1",
   
   # Seurat object
   seurat_obj = file.path(
     "data",
-    "xen2diet.rds"
+    "xen1diet.rds"
   ),
   
   # Experimental condition
@@ -41,18 +41,18 @@ settings <- list(
   #
   #   Xen2: condition_variable = "sample_id"
   #         condition_value = "wildType"
-  condition_variable = "sample_id",
-  condition_value = "knockOut",
+  condition_variable = "sex",
+  condition_value = "Male",
   
   # Cell-type analysis level
   #
   # "broad"       = all broad cell types
   # "fine"        = all fine cell types
   # "within_broad" = fine cell types within one broad type
-  cell_type_level = "within_broad",
+  cell_type_level = "broad",
   
   # Broad cell type to analyse when using "within_broad"
-  parent_cell_type = "Stroma",
+  parent_cell_type = NULL,
   
   # Metadata columns
   fine_cell_type_column = "cell_type",
@@ -61,11 +61,10 @@ settings <- list(
   
   # Time-point order for display
   time_point_order = c(
-    "Naive",
-    "24h",
-    "7d",
-    "14d",
-    "28d"
+    "1wk",
+    "2wk",
+    "4wk",
+    "12wk"
   )
 )
 
@@ -318,11 +317,36 @@ if (settings$cell_type_level == "broad") {
   )
 }
 
+# ===============================
+# Prepare Cell-Type Factor
+# ===============================
+if (settings$cell_type_level == "broad") {
+  
+  plot_data[[cell_type_column]] <- factor(
+    plot_data[[cell_type_column]],
+    levels = names(broad_cell_type_palette)
+  )
+  
+  fill_palette <- broad_cell_type_palette
+  
+} else {
+  
+  plot_data[[cell_type_column]] <- factor(
+    plot_data[[cell_type_column]],
+    levels = names(fine_cell_type_palette)
+  )
+  
+  fill_palette <- fine_cell_type_palette
+  
+}
 
 # ========================
 # Plot Cell Composition
 # ========================
 
+# ========================
+# Plot Cell Composition
+# ========================
 p_celltype_composition <- ggplot(
   plot_data,
   aes(
@@ -337,6 +361,9 @@ p_celltype_composition <- ggplot(
   ) +
   scale_y_continuous(
     labels = percent_format()
+  ) +
+  scale_fill_manual(
+    values = fill_palette
   ) +
   labs(
     x = "Time point",

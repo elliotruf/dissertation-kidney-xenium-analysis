@@ -1,7 +1,5 @@
 # ==========================================
-
 # ROI-level Cell Composition Analysis
-
 # ==========================================
 #
 # Calculates cell type composition across time points
@@ -30,13 +28,13 @@
 settings <- list(
   
   # Name used for output directories and files
-  experiment_name = "Xen1_Vessels_combined",
+  experiment_name = "Xen1_Male_Cortex",
   
   # ROI object
   roi_object = file.path(
     "results",
     "objects",
-    "Xen1_Vessels_combined_roi_objects.rds"
+    "Xen1_Male_Cortex_roi_objects.rds"
   ),
   
   # Cell-type analysis level
@@ -44,10 +42,10 @@ settings <- list(
   # "broad"        = all broad cell types
   # "fine"         = all fine cell types
   # "within_broad" = fine cell types within one broad type
-  cell_type_level = "within_broad",
+  cell_type_level = "broad",
   
   # Broad cell type to analyse when using "within_broad"
-  parent_cell_type = "Stroma",
+  parent_cell_type = NULL,
   
   # Metadata columns
   fine_cell_type_column = "cell_type",
@@ -339,10 +337,25 @@ if (any(is.na(roi_composition$time_point))) {
 # Prepare Cell-Type Factor
 # ===============================
 
-roi_composition$cell_type <- droplevels(
-  factor(roi_composition$cell_type)
-)
-
+if (settings$cell_type_level == "broad") {
+  
+  roi_composition$cell_type <- factor(
+    roi_composition$cell_type,
+    levels = names(broad_cell_type_palette)
+  )
+  
+  fill_palette <- broad_cell_type_palette
+  
+} else {
+  
+  roi_composition$cell_type <- factor(
+    roi_composition$cell_type,
+    levels = names(fine_cell_type_palette)
+  )
+  
+  fill_palette <- fine_cell_type_palette
+  
+}
 # ===============================
 # Summarise Across ROIs
 # ===============================
@@ -433,6 +446,11 @@ p_cell_type_composition <- ggplot(
     labels = percent_format(),
     limits = c(0, 1)
   ) +
+  scale_fill_manual(
+    values = fill_palette,
+    breaks = unique(plot_data$cell_type),
+    drop = TRUE
+  ) +
   labs(
     x = "Time point",
     y = "Cell proportion",
@@ -452,7 +470,7 @@ p_cell_type_composition <- ggplot(
   ) +
   guides(
     fill = guide_legend(
-      ncol = 3,
+      ncol = if (settings$cell_type_level == "broad") 3 else 4,
       byrow = TRUE
     )
   )

@@ -1,0 +1,192 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+# Calculations for ROI extraction Summary table
+```{r}
+library(tidyverse)
+
+roi_metadata <- readRDS(
+  "results/ROI_extraction/Xen2_KO_Vessels/metadata/Xen2_KO_Vessels_roi_metadata.rds"
+)
+
+roi_metadata %>%
+  mutate(
+    n_cells = purrr::map_int(cell_ids, length)
+  ) %>%
+  group_by(
+    experiment_name,
+    condition,
+    tissue,
+    time_point
+  ) %>%
+  summarise(
+    n_rois = n(),
+    mean_cells = mean(n_cells),
+    sd_cells = sd(n_cells),
+    .groups = "drop"
+  )
+
+roi_metadata %>%
+   mutate(
+     n_cells = purrr::map_int(cell_ids, length)
+   ) %>%
+   group_by(time_point) %>%
+   summarise(
+     cells_per_roi = paste0(
+       round(mean(n_cells)),
+       " ± ",
+       round(sd(n_cells))
+     ),
+     .groups = "drop"
+   )
+```
+
+# Fine cell type annotations color pallete using randomcoloR.
+```{R}
+library(randomcoloR)
+
+# Set seed for randomness
+set.seed(1234)
+
+# Existing cell types (122) 
+cell_types <- c(
+  "TAL_mat_C_OM",
+  "PTS1_mat_C",
+  "TAL_imm_M_1",
+  "TAL_mat_M",
+  "PTS1_S2_mat_C_dim",
+  "PTS1_imm_C_1",
+  "STROMA_mat_C",
+  "CD_PC_imm_CMP",
+  "PTS2_S3_mat_dim",
+  "STROMA_imm_C_1",
+  "VSMCs_small_vessels",
+  "PTS2_S3_tran_4w",
+  "STROMA_imm_IM_GS1",
+  "STROMA_imm_IMOM_GS1",
+  "PTS3_imm",
+  "CD_IC_C",
+  "IMMUNE_1_mat_C",
+  "TAL_ imm_C",
+  "DCT_CNT",
+  "STROMA_imm_C_2",
+  "PTS1_S2_male",
+  "STROMA_mat_IM",
+  "ENDO_STROMA_mat_OM",
+  "STROMA_imm_OM_GS1",
+  "STROMA_ENDO_mat_M",
+  "CD_PC_mat_CM",
+  "PODO",
+  "DCT_mat_C",
+  "IMMUNE_2_macro",
+  "PTS3_mat_OM_fem_dim",
+  "GEnC_gloms",
+  "STROMA_cap_perivasc",
+  "PTS2_S3_male_dim_1",
+  "ATL_DTL_P",
+  "STROMA_prolif",
+  "ATL_imm_M_P",
+  "STROMA_P",
+  "STROMA_mat_OM",
+  "IMMUNE_2",
+  "MESANGIAL",
+  "PTS2_imm_C",
+  "DTL_ATL_imm_IM_P",
+  "PECs",
+  "PTS2_S3_male_dim_2",
+  "DCT_imm_C",
+  "VSMCs_large vessels",
+  "CD_PC_mat_P",
+  "CD_IM_P",
+  "STROMA_imm_IM",
+  "DTL_mat_M",
+  "PTS2_mat_male_dim",
+  "UROTHELIUM_1",
+  "DCT_C",
+  "TAL_imm_P",
+  "PTS1_imm_C_2",
+  "DTL_ATL _mat_P",
+  "VSMCs_mature_M",
+  "TAL_imm_M_2",
+  "DTL_mat_M_rays",
+  "ENDO_large_vessels",
+  "FAT",
+  "UROTHELIUM_2",
+  "TAL_mat_C",
+  "CD_imm_prolif",
+  "TAL_mat_OM",
+  "rare_1",
+  "rare_2_TAL",
+  "rare_3_PT",
+  "PTS2_KO",
+  "PTS1_1",
+  "PTS2_WT",
+  "TAL_1",
+  "STROMA_1",
+  "PTS3_1",
+  "STROMA_2_INJURY_late",
+  "PTS1_2",
+  "PTS3_2",
+  "PT_INJURY_late",
+  "PTS1_S2_INJURY_early_KO_1",
+  "STROMA_3_cortical_Epo",
+  "STROMA_4_cortical",
+  "PT_INJURY_acute_WT",
+  "IMMUNE_1",
+  "TAL_INJURY",
+  "CNT",
+  "STROMA_5_INJURY",
+  "CD_IC",
+  "VSMCs",
+  "CD_PC",
+  "STROMA_6_capsular_perivascular",
+  "STROMA_7_INJURY_late",
+  "STROMA_8_medullary_OM",
+  "STROMA_9_medullary_IM",
+  "PTS1_S2_INJURY_ early_KO_2",
+  "PTS3_INJURY_late",
+  "TAL_2_IM",
+  "Endothelial_vessels",
+  "STROMA_10_cortical",
+  "Podocytes_1",
+  "STROMA_11_cortical",
+  "TAL_3",
+  "STROMA_12_medullary_OM",
+  "CNT _INJURY",
+  "STROMA_13_papillary",
+  "STROMA_14",
+  "Urothelium",
+  "STROMA_15",
+  "PTS3_INJURY_early",
+  "DTL_ATL_1",
+  "STROMA_15_peri_TAL",
+  "TAL_4",
+  "DTL_ATL_2",
+  "STROMA/ENDO_16_medullary_IM",
+  "STROMA_17_Mes_Cap_Int",
+  "DTL_APT_papilla",
+  "STROMA_19_lymphatics_Lyve1",
+  "TAL_prolif",
+  "Podocytes_2",
+  "Rare_1",
+  "Rare_2",
+  "Rare_3",
+  "Rare_4"
+)
+
+
+# Generate a highly separated palette
+
+fine_cell_type_palette <- distinctColorPalette(
+  k = length(cell_types),
+  runTsne = FALSE
+)
+
+names(fine_cell_type_palette) <- cell_types
+
+fine_cell_type_palette
+```

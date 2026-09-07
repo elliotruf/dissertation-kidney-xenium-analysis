@@ -4,6 +4,11 @@ output: html_notebook
 editor_options: 
   chunk_output_type: console
 ---
+# Scripts for generating paneled images from workflow-generated plots
+# Options for 3 images: bottom image centred, 3 images: vertical
+# 2 images: side-by-side, 2 images: vertical
+# and 4 images in a grid
+
 # 3 images, bottom row centred
 ```{r}
 library(magick)
@@ -63,19 +68,7 @@ image_write(
 )
 ```
 
-```{r}
-lapply(de_results, function(x) {
-  sig <- x[x$FDR < 0.05, ]
-
-  c(
-    Total_DEGs = nrow(sig),
-    Upregulated = sum(sig$logFC > 0),
-    Downregulated = sum(sig$logFC < 0)
-  )
-})
-```
-
-# 4 images
+# 4 images in a grid
 ```{r}
 library(magick)
 
@@ -188,6 +181,86 @@ image_info(final_figure)
 image_write(
   final_figure,
   "results/whole_kidney_cell_type/Xen1/de_figures/Xen1_PT_Male_DEG_bar_plot_comparison.png",
+  format = "png"
+)
+```
+
+
+# 2 images vertical
+```{r}
+library(magick)
+
+p1 <- image_read_pdf(
+  "results/cell_composition/Xen2_WT_Vessels/figures/Xen2_WT_Vessels_broad_cell_type_composition.pdf",
+  density = 600
+)
+
+p2 <- image_read_pdf(
+ "results/cell_composition/Xen2_KO_Vessels/figures/Xen2_KO_Vessels_broad_cell_type_composition.pdf",
+  density = 600
+)
+
+p1 <- image_annotate(
+  p1, "A",
+  location = "+30+30",
+  size = 20,
+  weight = 700
+)
+
+p2 <- image_annotate(
+  p2, "B",
+  location = "+30+30",
+  size = 20,
+  weight = 700
+)
+
+# Explicitly stack all three vertically
+final_figure <- image_append(
+  c(p1, p2),
+  stack = TRUE
+)
+
+# Check dimensions
+image_info(final_figure)
+
+# Save
+image_write(
+  final_figure,
+ "results/cell_composition/Xen2_KO_Vessels/figures/Xen2_Vessels_broad_cell_type_composition_comparison.png", 
+  format = "png"
+)
+```
+
+# 2 images side by side
+```{r}
+library(magick)
+
+p1 <- image_read_pdf(
+  "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Female_Cortex_broad_cell_type_composition.pdf",
+  density = 600
+)
+
+p2 <- image_read_pdf(
+ "results/cell_composition/Xen1_Male_Cortex/figures/Xen1_Male_Cortex_broad_cell_type_composition.pdf",
+  density = 600
+)
+
+p1 <- image_annotate(p1, "A", location = "+30+30",
+                     size = 20, weight = 700)
+
+p2 <- image_annotate(p2, "B", location = "+30+30",
+                     size = 20, weight = 700)
+
+# Top row: A + B
+top_row <- image_append(
+  c(p1, p2),
+  stack = FALSE
+)
+
+# Save
+image_write(
+  top_row,
+ "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Cortex_broad_cell_type_composition_comparison.png",
   format = "png"
 )
 ```

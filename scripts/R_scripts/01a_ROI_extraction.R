@@ -20,18 +20,18 @@ settings <- list(
   # Directory containing ROI folders
   roi_dir = file.path(
     "data",
-    "Xen2_ROIs",
-    "Xen2_KO_Vessels"
+    "Xen1_ROIs",
+    "Xen1_Female_Vessels"
   ),
   
   # Parent Seurat object
   seurat_obj = file.path(
     "data",
-    "xen2diet.rds"
+    "xen1diet.rds"
   ),
   
   # Name used for output directories and files
-  experiment_name = "Xen2_KO_Vessels",
+  experiment_name = "Xen1_Female_Vessels",
   
   # Pattern used to extract time points from ROI folder names
   # Currently set to find time points by day, hour, or week, as well as Naive/naive or Sham/sham.
@@ -40,10 +40,7 @@ settings <- list(
 
   # Map ROI condition labels to parent Seurat sample_id values.
   # Set to NULL if labels already match.
-  sample_map = c(
-    WT = "wildType",
-    KO = "knockOut"
-  )
+  sample_map = NULL
   
 )
 

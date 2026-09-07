@@ -1,0 +1,515 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+# Gene Detection Frequencies and Spearman's Correlation
+# For unclean Xen1, XeniumClean-processed Xen1, and
+# the matched scRNA-seq reference. 
+
+# Load datasets
+```{r}
+# original
+xen1diet <- readRDS("data/xen1diet.rds")
+
+# reference
+sc_rna_seq <- readRDS("data/yuehan_stromal_integrated.rds")
+
+# cleaned
+xenium_clean <- readRDS("results/objects/xenium_clean_banksy_res1.5.rds")
+```
+
+# Same mapping for broad cell types
+```{r}
+sc_rna_seq$scRNAseq_broad_type <- assign_broad_cell_types(
+  sc_rna_seq$cell_type
+)
+
+xen1diet$scRNAseq_broad_type <- assign_broad_cell_types(
+  xen1diet$cell_type
+)
+
+xenium_clean$scRNAseq_broad_type <- assign_broad_cell_types(
+  xenium_clean$cell_type
+)
+```
+
+# Custom function for determining gene detection + exporting .csv
+```{r}
+export_gene_detection <- function(
+    seurat_obj,
+    cell_type_column,
+    assay,
+    genes,
+    output_dir,
+    filename_prefix
+) {
+
+  # Get raw counts and normalised expression
+  counts <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "counts"
+  )
+
+  expression <- GetAssayData(
+    seurat_obj,
+    assay = assay,
+    layer = "data"
+  )
+
+  dir.create(
+    output_dir,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
+
+  cell_types <- sort(
+    unique(seurat_obj[[cell_type_column]][, 1])
+  )
+
+  for (cell_type in cell_types) {
+
+    if (is.na(cell_type)) next
+
+    message("Processing: ", cell_type)
+
+    cells <- rownames(seurat_obj[[]])[
+      seurat_obj[[cell_type_column]][, 1] == cell_type
+    ]
+
+    cells <- intersect(
+      cells,
+      colnames(counts)
+    )
+
+    panel_genes <- intersect(
+      genes,
+      rownames(counts)
+    )
+
+    if (length(cells) == 0 || length(panel_genes) == 0) {
+      warning("Skipping ", cell_type)
+      next
+    }
+
+    counts_sub <- counts[
+      panel_genes,
+      cells,
+      drop = FALSE
+    ]
+
+    expression_sub <- expression[
+      panel_genes,
+      cells,
+      drop = FALSE
+    ]
+
+    # Detection
+    detected_cells <- Matrix::rowSums(
+      counts_sub > 0
+    )
+
+    total_cells <- ncol(counts_sub)
+
+    detection_frequency <-
+      detected_cells / total_cells
+
+    # Mean normalised expression
+    average_expression <-
+      Matrix::rowMeans(expression_sub)
+
+    results <- data.frame(
+      Cell_Type = cell_type,
+      Gene = names(detected_cells),
+      Detected_Cells = as.integer(detected_cells),
+      Total_Cells = total_cells,
+      Detection_Frequency =
+        as.numeric(detection_frequency),
+      Detection_Percent =
+        as.numeric(detection_frequency * 100),
+      Mean_Normalised_Expression =
+        as.numeric(average_expression)
+    )
+
+    results$Category <- dplyr::case_when(
+      results$Detection_Frequency >= 0.10 ~
+        "Expressed",
+      results$Detection_Frequency < 0.05 ~
+        "Not Expressed",
+      TRUE ~
+        "Intermediate"
+    )
+
+    results <- results[
+      order(-results$Detection_Frequency),
+      ,
+      drop = FALSE
+    ]
+
+    safe_name <- gsub(
+      "[^A-Za-z0-9_]+",
+      "_",
+      cell_type
+    )
+
+    write.csv(
+      results,
+      file.path(
+        output_dir,
+        paste0(
+          filename_prefix,
+          safe_name,
+          "_gene_detection.csv"
+        )
+      ),
+      row.names = FALSE
+    )
+  }
+}
+```
+
+# Find shared genes between all 3 datasets
+```{r}
+library(AnnotationDbi)
+library(org.Mm.eg.db)
+
+gene_map <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = rownames(sc_rna_seq[["RNA"]]),
+  keytype = "ENSEMBL",
+  columns = "SYMBOL"
+)
+
+
+xen1_genes <- rownames(xen1diet[["Xenium"]])
+clean_genes <- rownames(xenium_clean[["XeniumClean"]])
+
+scRNA_genes <- unique(
+  gene_map$SYMBOL[!is.na(gene_map$SYMBOL)]
+)
+
+shared_genes <- Reduce(
+  intersect,
+  list(
+    scRNA_genes,
+    xen1_genes,
+    clean_genes
+  )
+)
+
+length(shared_genes)
+
+scRNA_shared_genes <- gene_map$ENSEMBL[
+  gene_map$SYMBOL %in% shared_genes
+]
+
+length(scRNA_shared_genes)
+```
+
+```{r}
+# scRNA-seq broad 
+export_gene_detection(
+  seurat_obj = sc_rna_seq,
+  cell_type_column = "scRNAseq_broad_type",
+  assay = "RNA",
+  genes = scRNA_shared_genes,
+  output_dir =
+    "results/Xenium_clean/Xen1_scRNAseq_gene_detection_broad_celltypes_CommonMapping",
+  filename_prefix = "Xen1_scRNA-seq_"
+)
+
+# Xen1diet broad
+export_gene_detection(
+  seurat_obj = xen1diet,
+  cell_type_column = "scRNAseq_broad_type",
+  assay = "Xenium",
+  genes = shared_genes,
+  output_dir =
+    "results/Xenium_clean/Clean_Xen1diet_gene_detection_broad_celltypes_CommonMapping",
+  filename_prefix = "Xen1_"
+)
+
+# Xenium_clean broad
+export_gene_detection(
+  seurat_obj = xenium_clean,
+  cell_type_column = "scRNAseq_broad_type",
+  assay = "XeniumClean",
+  genes = shared_genes,
+  output_dir =
+    "results/Xenium_clean/Clean_Xen1_gene_detection_broad_celltypes_CommonMapping",
+  filename_prefix = "Xen1_Xenium_Clean_"
+)
+```
+
+```{r}
+shared_broad_types <- c(
+  "Collecting duct",
+  "DCT",
+  "Endothelium",
+  "Glomerular",
+  "Immune",
+  "PT",
+  "Stroma",
+  "TAL",
+  "Thin limb",
+  "Urothelium"
+)
+
+scRNA_dir <- "results/Xenium_clean/Xen1_scRNAseq_gene_detection_broad_celltypes_CommonMapping"
+xen1_dir <- "results/Xenium_clean/Clean_Xen1diet_gene_detection_broad_celltypes_CommonMapping"
+clean_dir <- "results/Xenium_clean/Clean_Xen1_gene_detection_broad_celltypes_CommonMapping"
+```
+
+```{r}
+read_detection_files <- function(
+    directory,
+    files,
+    dataset_name
+) {
+
+  purrr::map_dfr(files, function(file) {
+
+    df <- read.csv(
+      file.path(directory, file),
+      stringsAsFactors = FALSE
+    )
+
+    df$Dataset <- dataset_name
+
+    df
+
+  })
+}
+```
+
+```{r}
+scRNA_files <- list.files(
+  scRNA_dir,
+  pattern = "\\.csv$",
+  full.names = FALSE
+)
+
+xen1_files <- list.files(
+  xen1_dir,
+  pattern = "\\.csv$",
+  full.names = FALSE
+)
+
+clean_files <- list.files(
+  clean_dir,
+  pattern = "\\.csv$",
+  full.names = FALSE
+)
+```
+
+```{r}
+scRNA_files <- c(
+  "Xen1_scRNA-seq_Collecting_duct_gene_detection.csv",
+  "Xen1_scRNA-seq_DCT_gene_detection.csv",
+  "Xen1_scRNA-seq_Endothelium_gene_detection.csv",
+  "Xen1_scRNA-seq_Glomerular_gene_detection.csv",
+  "Xen1_scRNA-seq_Immune_gene_detection.csv",
+  "Xen1_scRNA-seq_PT_gene_detection.csv",
+  "Xen1_scRNA-seq_Stroma_gene_detection.csv",
+  "Xen1_scRNA-seq_TAL_gene_detection.csv",
+  "Xen1_scRNA-seq_Thin_limb_gene_detection.csv",
+  "Xen1_scRNA-seq_Urothelium_gene_detection.csv"
+)
+
+xen1_files <- c(
+  "Xen1_Collecting_duct_gene_detection.csv",
+  "Xen1_DCT_gene_detection.csv",
+  "Xen1_Endothelium_gene_detection.csv",
+  "Xen1_Glomerular_gene_detection.csv",
+  "Xen1_Immune_gene_detection.csv",
+  "Xen1_PT_gene_detection.csv",
+  "Xen1_Stroma_gene_detection.csv",
+  "Xen1_TAL_gene_detection.csv",
+  "Xen1_Thin_limb_gene_detection.csv",
+  "Xen1_Urothelium_gene_detection.csv"
+)
+
+clean_files <- c(
+  "Xen1_Xenium_Clean_Collecting_duct_gene_detection.csv",
+  "Xen1_Xenium_Clean_DCT_gene_detection.csv",
+  "Xen1_Xenium_Clean_Endothelium_gene_detection.csv",
+  "Xen1_Xenium_Clean_Glomerular_gene_detection.csv",
+  "Xen1_Xenium_Clean_Immune_gene_detection.csv",
+  "Xen1_Xenium_Clean_PT_gene_detection.csv",
+  "Xen1_Xenium_Clean_Stroma_gene_detection.csv",
+  "Xen1_Xenium_Clean_TAL_gene_detection.csv",
+  "Xen1_Xenium_Clean_Thin_limb_gene_detection.csv",
+  "Xen1_Xenium_Clean_Urothelium_gene_detection.csv"
+)
+```
+
+```{r}
+scRNA_detection <- read_detection_files(
+  scRNA_dir,
+  scRNA_files,
+  "scRNA_reference"
+)
+
+xen1_detection <- read_detection_files(
+  xen1_dir,
+  xen1_files,
+  "Xen1"
+)
+
+clean_detection <- read_detection_files(
+  clean_dir,
+  clean_files,
+  "XeniumClean"
+)
+```
+
+```{r}
+scRNA_detection$GeneSymbol <- shared_gene_map$SYMBOL[
+  match(
+    scRNA_detection$Gene,
+    shared_gene_map$ENSEMBL
+  )
+]
+
+scRNA_detection$Gene <- scRNA_detection$GeneSymbol
+scRNA_detection$GeneSymbol <- NULL
+```
+
+```{r}
+all_detection <- dplyr::bind_rows(
+  scRNA_detection,
+  xen1_detection,
+  clean_detection
+)
+```
+
+# Make Comparison Table
+```{r}
+library(dplyr)
+library(tidyr)
+
+detection_comparison <- all_detection %>%
+  dplyr::select(
+    Cell_Type,
+    Gene,
+    Dataset,
+    Detection_Percent
+  ) %>%
+  tidyr::pivot_wider(
+    names_from = Dataset,
+    values_from = Detection_Percent
+  )
+```
+
+# Change in error table, cell type summary table, and cell type improvement table
+```{r}
+detection_comparison <- detection_comparison %>%
+  dplyr::mutate(
+    Before_Error = abs(
+      Xen1 - scRNA_reference
+    ),
+    After_Error = abs(
+      XeniumClean - scRNA_reference
+    ),
+    Change_in_Error = After_Error - Before_Error
+  )
+
+cell_type_summary <- detection_comparison %>%
+  dplyr::group_by(Cell_Type) %>%
+  dplyr::summarise(
+    Median_Before_Error = median(
+      Before_Error,
+      na.rm = TRUE
+    ),
+    Median_After_Error = median(
+      After_Error,
+      na.rm = TRUE
+    ),
+    Median_Change_in_Error = median(
+      Change_in_Error,
+      na.rm = TRUE
+    ),
+    Mean_Before_Error = mean(
+      Before_Error,
+      na.rm = TRUE
+    ),
+    Mean_After_Error = mean(
+      After_Error,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+
+cell_type_summary <- detection_comparison %>%
+  dplyr::group_by(Cell_Type) %>%
+  dplyr::summarise(
+    Median_Before_Error = median(Before_Error, na.rm = TRUE),
+    Median_After_Error = median(After_Error, na.rm = TRUE),
+    Mean_Before_Error = mean(Before_Error, na.rm = TRUE),
+    Mean_After_Error = mean(After_Error, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  dplyr::mutate(
+    Median_Error_Reduction =
+      Median_Before_Error - Median_After_Error,
+    Mean_Error_Reduction =
+      Mean_Before_Error - Mean_After_Error
+  )
+
+cell_type_improvement <- detection_comparison %>%
+  dplyr::group_by(Cell_Type) %>%
+  dplyr::summarise(
+    Genes_Closer = sum(Change_in_Error < 0, na.rm = TRUE),
+    Genes_Unchanged = sum(Change_in_Error == 0, na.rm = TRUE),
+    Genes_Further = sum(Change_in_Error > 0, na.rm = TRUE),
+    Total_Genes = dplyr::n(),
+    Percent_Closer =
+      Genes_Closer / Total_Genes * 100,
+    Percent_Further =
+      Genes_Further / Total_Genes * 100,
+    .groups = "drop"
+  )
+```
+
+# Make a nice table
+```{r}
+plot_data <- detection_comparison %>%
+  dplyr::select(
+    Cell_Type,
+    Gene,
+    Before_Error,
+    After_Error
+  ) %>%
+  tidyr::pivot_longer(
+    cols = c(Before_Error, After_Error),
+    names_to = "Stage",
+    values_to = "Error"
+  ) %>%
+  dplyr::mutate(
+    Stage = dplyr::recode(
+      Stage,
+      Before_Error = "Before XeniumClean",
+      After_Error = "After XeniumClean"
+    )
+  )
+
+ggplot(
+  plot_data,
+  aes(
+    x = Stage,
+    y = Error
+  )
+) +
+  geom_boxplot() +
+  facet_wrap(
+    ~ Cell_Type,
+    ncol = 2
+  ) +
+  labs(
+    x = NULL,
+    y = "Absolute detection-frequency error (percentage points)"
+  ) +
+  theme_classic()
+```
