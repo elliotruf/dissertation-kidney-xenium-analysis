@@ -23,12 +23,12 @@
 settings <- list(
   
   # Name used for output directories and files
-  experiment_name = "Xen1",
+  experiment_name = "Xen2",
   
   # Seurat Object for analysis
   seurat_obj = file.path(
     "data",
-    "xen1diet.rds"
+    "xen2diet.rds"
   ),
   
   # Cell type for analysis
@@ -43,15 +43,16 @@ settings <- list(
   cell_type_variable = "broad_cell_type",
  
   # Differential expression
-  condition_variable = "sex",
-  condition_value = "Female",
+  condition_variable = "sample_id",
+  condition_value = "knockOut",
   time_point_variable = "time_point",
-  reference_time_point = "1wk",
+  reference_time_point = "Naive",
   time_point_order = c(
-    "1wk",
-    "2wk",
-    "4wk",
-    "12wk"
+    "Naive",
+    "24h",
+    "7d",
+    "14d",
+    "28d"
   ),
   
   # Assay

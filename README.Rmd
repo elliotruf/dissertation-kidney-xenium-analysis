@@ -21,19 +21,19 @@ scripts/
     ├── 01a_ROI_extraction.R
     ├── 01b_sex_pool.R
     ├── 02_ROI_pseudobulk.R
-    ├── 03_ROI_broad_celltype_pseudobulk.R
-    ├── 04_wholekidney_celltype.R
-    ├── 05_cell_composition.R
+    ├── 03_ROI_broad_cell_type_pseudobulk.R
+    ├── 04_whole_kidney_cell_type.R
+    ├── 05a_whole_object_cell_composition.R
+    ├── 05b_ROI_cell_composition.R
     └── 06_convert_seurat_to_h5ad.R
 
 results/
-├── objects/
+├── ROI_extraction/
 ├── ROI_pseudobulk/
-├── ROI_broad_celltype_pseudobulk/
-├── ROI_singlecell_mixed_model/
-├── whole_kidney_celltype/
+├── ROI_broad_cell_type_pseudobulk/
+├── whole_kidney_cell_type/
 ├── cell_composition/
-└── liana_cell_cell_communication/
+└── cell_cell_communication/
 ```
   
 `scripts/` contains all R and Python scripts required for analyses and visualisations. Helper R functions are stored under `scripts/helpers/` and grouped by purpose.

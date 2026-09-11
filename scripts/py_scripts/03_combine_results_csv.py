@@ -5,7 +5,7 @@
 # for easier interrogation
 
 EXPERIMENT = "Xen1"
-GROUPBY = "seurat_clusters"
+GROUPBY = "broad_celltype"
 
 # ====================================
 # Imports
@@ -31,7 +31,7 @@ FIGURES_DIR = OUTPUTS_DIR / "figures"
 
 files = sorted(
     Path(TABLES_DIR).glob(
-        f"{EXPERIMENT}_*_{GROUPBY}_results_sender_receiver_targeted_allpairs.csv"
+        f"{EXPERIMENT}_*_{GROUPBY}_supervisor_pairs_results.csv"
     )
 )
 
@@ -44,7 +44,7 @@ combined = pd.concat(
 print("Saving combined results...")
 combined.to_csv(
     TABLES_DIR / 
-    f"{EXPERIMENT}_{GROUPBY}_combined_results_sender_receiver_targeted_allpairs.csv",
+    f"{EXPERIMENT}_{GROUPBY}_combined_supervisor_pairs_results.csv",
     index=False
 )
 

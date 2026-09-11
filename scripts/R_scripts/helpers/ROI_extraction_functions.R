@@ -57,7 +57,7 @@ build_roi_metadata <- function(
         "Could not determine the time_point from:\n",
         paste(
           unique(dirname(roi_metadata$file[
-            is.na(roi$metadata_time_point)
+            is.na(roi$metadata$time_point)
           ])),
           collapse = "\n"
         )
@@ -127,7 +127,7 @@ build_roi_metadata <- function(
 # =====================================
 # Create ROI Seurat Object
 # =====================================
-# Create a single ROI object from one ROI row
+# Create a single ROI object from one ROI metadata row
 
 create_roi_object <- function(
     roi_row,

@@ -4,6 +4,11 @@
 # For cleaning a Xenium dataset using XeniumClean.
 # Xenium dataset must have its labels matched to a matching scRNA-seq dataset
 # for the reference.
+#
+# - Set the label-transferred Xenium object for cleaning
+#
+#
+#
 
 # =====================
 # User Settings

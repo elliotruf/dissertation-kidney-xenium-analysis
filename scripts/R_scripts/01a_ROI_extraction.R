@@ -21,7 +21,7 @@ settings <- list(
   roi_dir = file.path(
     "data",
     "Xen1_ROIs",
-    "Xen1_Female_Vessels"
+    "Xen1_Male_Vessels"
   ),
   
   # Parent Seurat object
@@ -31,7 +31,7 @@ settings <- list(
   ),
   
   # Name used for output directories and files
-  experiment_name = "Xen1_Female_Vessels",
+  experiment_name = "Xen1_Male_Vessels",
   
   # Pattern used to extract time points from ROI folder names
   # Currently set to find time points by day, hour, or week, as well as Naive/naive or Sham/sham.

@@ -9,7 +9,7 @@
 # ============================================
 
 EXPERIMENT = "Xen1"                               # Experiment name for naming files
-GROUPBY = "seurat_clusters"                        # Broad / fine cell type / seurat clusters
+GROUPBY = "seurat_cluster"                        # Broad / fine cell type / seurat clusters
 TIME_POINT_ORDER = ["1wk", "2wk", "4wk", "12wk"]  # Order to display timepoints
 
 ANN_DATA = "Xen1diet_prepared.h5ad"
@@ -21,10 +21,12 @@ DATA = "Xen1_seurat_clusters_combined_results_sender_receiver_targeted_allpairs.
 
 import pandas as pd
 import seaborn as sns
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import scanpy as sc
 import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt
 from scipy.stats import zscore
 
 # ====================================
@@ -46,38 +48,11 @@ combined = pd.read_csv(TABLES_DIR / DATA)
 
 # Create interaction label containing
 # sender, receiver, ligand and receptor
-cluster_lookup = (
-    adata.obs[["seurat_clusters", "cell_type"]]
-    .drop_duplicates()
-)
 combined["source"] = combined["source"].astype(str)
 combined["target"] = combined["target"].astype(str)
 
-cluster_lookup["seurat_clusters"] = (
-    cluster_lookup["seurat_clusters"].astype(str)
-)
-
-cluster_to_celltype = dict(
-    zip(
-        cluster_lookup["seurat_clusters"],
-        cluster_lookup["cell_type"]
-    )
-)
-
-combined["source_celltype"] = (
-    combined["source"].map(cluster_to_celltype)
-)
-
-combined["target_celltype"] = (
-    combined["target"].map(cluster_to_celltype)
-)
-
 combined["interaction"] = (
-    combined["source_celltype"]
-    + " → "
-    + combined["target_celltype"]
-    + " : "
-    + combined["ligand_complex"].astype(str)
+    combined["ligand_complex"].astype(str)
     + " → "
     + combined["receptor_complex"].astype(str)
 )
@@ -142,6 +117,7 @@ plt.close()
 # ===================================
 # Figure 2: Row-scaled heatmap
 # ===================================
+# Relative pair interactions
 
 # Start with a copy of the raw interaction score matrix
 heatmap_scaled = heatmap_df.copy()
@@ -246,5 +222,98 @@ plt.savefig(
 
 plt.close()
 
-# Done!
-print("Done!")
+# ============================================
+# Figure 3: Broad cell-type LR pair distribution
+# ============================================
+
+broad_distribution = (
+    combined
+    .groupby(
+        ["time_point", "source", "target"]
+    )["interaction"]
+    .nunique()
+    .reset_index(name="n_lr_pairs")
+)
+
+print("\nBroad distribution:")
+print(broad_distribution.head(20))
+
+fig, axes = plt.subplots(
+    2, 2,
+    figsize=(16, 14)
+)
+
+axes = axes.flatten()
+
+max_lr_pairs = broad_distribution["n_lr_pairs"].max()
+
+for ax, timepoint in zip(
+    axes,
+    TIME_POINT_ORDER
+):
+
+    plot_df = (
+        broad_distribution[
+            broad_distribution["time_point"] == timepoint
+        ]
+        .pivot(
+            index="source",
+            columns="target",
+            values="n_lr_pairs"
+        )
+        .fillna(0)
+    )
+
+    print(
+        f"{timepoint}:",
+        plot_df.shape,
+        "non-NA values =",
+        plot_df.notna().sum().sum()
+    )
+
+    sns.heatmap(
+        plot_df,
+        ax=ax,
+        cmap="viridis",
+        vmin=0,
+        vmax=max_lr_pairs,
+        linewidths=0,
+        cbar=True,
+        cbar_kws={
+            "label": "Number of targeted LR pairs"
+        }
+    )
+
+    ax.set_title(timepoint)
+    ax.set_xlabel("Target Seurat cluster")
+    ax.set_ylabel("Source Seurat cluster")
+
+    ax.tick_params(
+        axis="x",
+        rotation=45
+    )
+
+    ax.tick_params(
+        axis="y",
+        rotation=0
+    )
+
+fig.suptitle(
+    "Distribution of targeted ligand-receptor pairs between Seurat clusters across Xen1 kidney development",
+    fontsize=16
+)
+
+plt.tight_layout()
+
+print("Saving broad cell-type LR pair distribution heatmap...")
+
+plt.savefig(
+    FIGURES_DIR /
+    f"{EXPERIMENT}_broad_celltype_LR_pair_distribution.pdf",
+    dpi=600,
+    bbox_inches="tight"
+)
+
+plt.close()
+
+print("Broad cell-type LR pair distribution heatmap saved.")

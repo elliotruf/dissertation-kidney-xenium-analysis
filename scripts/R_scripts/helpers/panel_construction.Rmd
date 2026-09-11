@@ -68,27 +68,62 @@ image_write(
 )
 ```
 
-# 4 images in a grid
+# 2 images side by side
 ```{r}
 library(magick)
 
 p1 <- image_read_pdf(
-  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_24h_vs_Sham_volcano.pdf",
+  "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Female_Cortex_broad_cell_type_composition.pdf",
   density = 600
 )
 
 p2 <- image_read_pdf(
-  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_7d_vs_sham_volcano.pdf",
+ "results/cell_composition/Xen1_Male_Cortex/figures/Xen1_Male_Cortex_broad_cell_type_composition.pdf",
+  density = 600
+)
+
+p1 <- image_annotate(p1, "A", location = "+30+30",
+                     size = 20, weight = 700)
+
+p2 <- image_annotate(p2, "B", location = "+30+30",
+                     size = 20, weight = 700)
+
+# Top row: A + B
+top_row <- image_append(
+  c(p1, p2),
+  stack = FALSE
+)
+
+# Save
+image_write(
+  top_row,
+ "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Cortex_broad_cell_type_composition_comparison.png",
+  format = "png"
+)
+```
+
+# 4 images in a grid
+```{r}
+library(magick)
+
+
+p1 <- image_read_pdf(
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_Stroma_knockOut_24h_vs_Naive_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p2 <- image_read_pdf(
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_Stroma_knockOut_7d_vs_Naive_DEG_bar_plot.pdf",
   density = 600
 )
 
 p3 <- image_read_pdf(
-  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_14d_vs_sham_volcano.pdf",
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_Stroma_knockOut_14d_vs_Naive_DEG_bar_plot.pdf",
   density = 600
 )
 
 p4 <- image_read_pdf(
-  "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_28d_vs_sham_volcano.pdf",
+ "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_Stroma_knockOut_28d_vs_Naive_DEG_bar_plot.pdf", 
   density = 600
 )
 
@@ -123,8 +158,8 @@ final_figure <- image_append(
 # Save
 image_write(
   final_figure,
- "results/ROI_broad_celltype_pseudobulk/DE/figures/Xen2_KO_Vessels/Stroma_Comparison.pdf",
-  format = "pdf"
+ "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_Stroma_knockOut_DEG_bar_plot_comparison.png",
+  format = "png"
 )
 ```
 
@@ -231,17 +266,27 @@ image_write(
 )
 ```
 
-# 2 images side by side
+# 4 images vertical
 ```{r}
 library(magick)
 
 p1 <- image_read_pdf(
-  "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Female_Cortex_broad_cell_type_composition.pdf",
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_PT_wildType_24h_vs_Naive_DEG_bar_plot.pdf",
   density = 600
 )
 
 p2 <- image_read_pdf(
- "results/cell_composition/Xen1_Male_Cortex/figures/Xen1_Male_Cortex_broad_cell_type_composition.pdf",
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_PT_wildType_7d_vs_Naive_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p3 <- image_read_pdf(
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_PT_wildType_14d_vs_Naive_DEG_bar_plot.pdf",
+  density = 600
+)
+
+p4 <- image_read_pdf(
+  "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_PT_wildType_28d_vs_Naive_DEG_bar_plot.pdf",
   density = 600
 )
 
@@ -251,16 +296,22 @@ p1 <- image_annotate(p1, "A", location = "+30+30",
 p2 <- image_annotate(p2, "B", location = "+30+30",
                      size = 20, weight = 700)
 
-# Top row: A + B
-top_row <- image_append(
-  c(p1, p2),
-  stack = FALSE
+p3 <- image_annotate(p3, "C", location = "+30+30",
+                     size = 20, weight = 700)
+
+p4 <- image_annotate(p4, "D", location = "+30+30",
+                     size = 20, weight = 700)
+
+# Combine top and bottom rows
+final_figure <- image_append(
+  c(p1, p2, p3, p4),
+  stack = TRUE
 )
 
 # Save
 image_write(
-  top_row,
- "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Cortex_broad_cell_type_composition_comparison.png",
+  final_figure,
+ "results/whole_kidney_cell_type/Xen2/de_figures/Xen2_PT_wildType_DEG_bar_plot_comparison.png",
   format = "png"
 )
 ```

@@ -1,8 +1,14 @@
 # ======================================
 # scRNA-seq to Xenium label transfer
 # ======================================
-# For the tranfer of labels of an scRNAseq dataset to a Xenium dataset,
+# For the transfer of labels of an scRNAseq dataset to a Xenium dataset,
 # in preparation for cleaning with XeniumClean (Zemek 2026).
+#
+# Before running:
+# - Set the query Xenium object
+# - Set the scRNA-seq reference object
+# - Set the condition to split the reference by sample
+# - Set the new object and reference names
 
 # ===================
 # User Settings

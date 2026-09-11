@@ -1,0 +1,45 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+xen1_label_transfer <- readRDS("results/objects/xen1_label_transfer.rds")
+```
+
+```{r}
+p_original <- DimPlot(
+  xen1_label_transfer,
+  reduction = "umap",
+  group.by = "cell_type",
+  label = TRUE,
+  repel = TRUE,
+  label.size = 3,
+  pt.size = 1,
+  alpha = 1
+) +
+  ggtitle("Original annotation") +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  )
+
+p_transfer <- DimPlot(
+  xen1_label_transfer,
+  reduction = "umap",
+  group.by = "predicted.id",
+  label = TRUE,
+  repel = TRUE,
+  label.size = 3,
+  pt.size = 1,
+  alpha = 1
+) +
+  ggtitle("Anchor-based label transfer") +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  )
+
+```

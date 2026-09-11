@@ -343,10 +343,6 @@ if (settings$cell_type_level == "broad") {
 # ========================
 # Plot Cell Composition
 # ========================
-
-# ========================
-# Plot Cell Composition
-# ========================
 p_celltype_composition <- ggplot(
   plot_data,
   aes(
