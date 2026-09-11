@@ -8,16 +8,24 @@ editor_options:
 # For unclean Xen1, XeniumClean-processed Xen1, and
 # the matched scRNA-seq reference. 
 
+```{r}
+library(Seurat)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(Matrix)
+source("D:/USERS/ELLIOT/Dissertation/scripts/R_scripts/helpers/cell_type_functions.R")
+```
 # Load datasets
 ```{r}
 # original
-xen1diet <- readRDS("data/xen1diet.rds")
+xen1diet <- readRDS("D:/USERS/ELLIOT/Dissertation/data/xen1diet.rds")
 
 # reference
-sc_rna_seq <- readRDS("data/yuehan_stromal_integrated.rds")
+sc_rna_seq <- readRDS("D:/USERS/ELLIOT/Dissertation/data/yuehan_stromal_integrated.rds")
 
 # cleaned
-xenium_clean <- readRDS("results/objects/xenium_clean_banksy_res1.5.rds")
+xenium_clean <- readRDS("D:/USERS/ELLIOT/Dissertation/results/objects/xenium_clean_banksy_res1.5.rds")
 ```
 
 # Same mapping for broad cell types
@@ -201,9 +209,25 @@ shared_genes <- Reduce(
 
 length(shared_genes)
 
-scRNA_shared_genes <- gene_map$ENSEMBL[
-  gene_map$SYMBOL %in% shared_genes
-]
+# =====================================
+# Create unique mapping for shared genes
+# =====================================
+
+shared_gene_map <- gene_map %>%
+  dplyr::filter(
+    SYMBOL %in% shared_genes,
+    !is.na(SYMBOL),
+    !is.na(ENSEMBL)
+  ) %>%
+  dplyr::distinct(
+    ENSEMBL,
+    SYMBOL
+  ) %>%
+  dplyr::group_by(ENSEMBL) %>%
+  dplyr::filter(dplyr::n() == 1) %>%
+  dplyr::ungroup()
+
+scRNA_shared_genes <- shared_gene_map$ENSEMBL
 
 length(scRNA_shared_genes)
 ```
@@ -227,7 +251,7 @@ export_gene_detection(
   assay = "Xenium",
   genes = shared_genes,
   output_dir =
-    "results/Xenium_clean/Clean_Xen1diet_gene_detection_broad_celltypes_CommonMapping",
+    "results/Xenium_clean/Original_Xen1diet_gene_detection_broad_celltypes_CommonMapping",
   filename_prefix = "Xen1_"
 )
 
@@ -258,7 +282,7 @@ shared_broad_types <- c(
 )
 
 scRNA_dir <- "results/Xenium_clean/Xen1_scRNAseq_gene_detection_broad_celltypes_CommonMapping"
-xen1_dir <- "results/Xenium_clean/Clean_Xen1diet_gene_detection_broad_celltypes_CommonMapping"
+xen1_dir <- "results/Xenium_clean/Original_Xen1diet_gene_detection_broad_celltypes_CommonMapping"
 clean_dir <- "results/Xenium_clean/Clean_Xen1_gene_detection_broad_celltypes_CommonMapping"
 ```
 
@@ -282,26 +306,6 @@ read_detection_files <- function(
 
   })
 }
-```
-
-```{r}
-scRNA_files <- list.files(
-  scRNA_dir,
-  pattern = "\\.csv$",
-  full.names = FALSE
-)
-
-xen1_files <- list.files(
-  xen1_dir,
-  pattern = "\\.csv$",
-  full.names = FALSE
-)
-
-clean_files <- list.files(
-  clean_dir,
-  pattern = "\\.csv$",
-  full.names = FALSE
-)
 ```
 
 ```{r}
@@ -366,6 +370,8 @@ clean_detection <- read_detection_files(
 ```
 
 ```{r}
+# Convert scRNA-seq Ensembl IDs to gene symbols
+
 scRNA_detection$GeneSymbol <- shared_gene_map$SYMBOL[
   match(
     scRNA_detection$Gene,
@@ -373,11 +379,11 @@ scRNA_detection$GeneSymbol <- shared_gene_map$SYMBOL[
   )
 ]
 
+sum(is.na(scRNA_detection$GeneSymbol))
+
 scRNA_detection$Gene <- scRNA_detection$GeneSymbol
 scRNA_detection$GeneSymbol <- NULL
-```
 
-```{r}
 all_detection <- dplyr::bind_rows(
   scRNA_detection,
   xen1_detection,
@@ -471,6 +477,7 @@ cell_type_improvement <- detection_comparison %>%
       Genes_Further / Total_Genes * 100,
     .groups = "drop"
   )
+
 ```
 
 # Make a nice table
@@ -512,4 +519,56 @@ ggplot(
     y = "Absolute detection-frequency error (percentage points)"
   ) +
   theme_classic()
+```
+
+# Spearman correlation
+```{r}
+# =====================================
+# Spearman Correlation
+# =====================================
+
+spearman_results <- detection_comparison %>%
+  dplyr::group_by(Cell_Type) %>%
+  dplyr::summarise(
+    Spearman_Before = cor(
+      Xen1,
+      scRNA_reference,
+      method = "spearman",
+      use = "complete.obs"
+    ),
+    Spearman_After = cor(
+      XeniumClean,
+      scRNA_reference,
+      method = "spearman",
+      use = "complete.obs"
+    ),
+    .groups = "drop"
+  ) %>%
+  dplyr::mutate(
+    Difference = Spearman_After - Spearman_Before
+  )
+
+spearman_results
+
+# =====================================
+# Overall Spearman Correlation
+# =====================================
+
+overall_spearman_before <- cor(
+  detection_comparison$Xen1,
+  detection_comparison$scRNA_reference,
+  method = "spearman",
+  use = "complete.obs"
+)
+
+overall_spearman_after <- cor(
+  detection_comparison$XeniumClean,
+  detection_comparison$scRNA_reference,
+  method = "spearman",
+  use = "complete.obs"
+)
+
+overall_spearman_before
+overall_spearman_after
+
 ```

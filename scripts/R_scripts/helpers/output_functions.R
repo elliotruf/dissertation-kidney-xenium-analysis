@@ -438,10 +438,6 @@ save_de_tables_seurat <- function(
 # ======================================
 # Save DE Heatmap (Seurat)
 # ======================================
-
-# ======================================
-# Save DE Heatmap (Seurat)
-# ======================================
 save_de_heatmap_seurat <- function(
     de_results,
     timepoint_order,

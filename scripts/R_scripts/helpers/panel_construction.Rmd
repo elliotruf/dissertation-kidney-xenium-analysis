@@ -73,12 +73,12 @@ image_write(
 library(magick)
 
 p1 <- image_read_pdf(
-  "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Female_Cortex_broad_cell_type_composition.pdf",
+  "D:/USERS/ELLIOT/Dissertation/results/cell_composition/Xen2/figures/Xen2_wildType_broad_celltype_composition.pdf",
   density = 600
 )
 
 p2 <- image_read_pdf(
- "results/cell_composition/Xen1_Male_Cortex/figures/Xen1_Male_Cortex_broad_cell_type_composition.pdf",
+ "D:/USERS/ELLIOT/Dissertation/results/cell_composition/Xen2/figures/Xen2_knockOut_broad_celltype_composition.pdf",
   density = 600
 )
 
@@ -97,7 +97,7 @@ top_row <- image_append(
 # Save
 image_write(
   top_row,
- "results/cell_composition/Xen1_Female_Cortex/figures/Xen1_Cortex_broad_cell_type_composition_comparison.png",
+ "D:/USERS/ELLIOT/Dissertation/results/cell_composition/Xen2/figures/Xen2_broad_celltype_composition_comparison.png",
   format = "png"
 )
 ```
@@ -226,12 +226,12 @@ image_write(
 library(magick)
 
 p1 <- image_read_pdf(
-  "results/cell_composition/Xen2_WT_Vessels/figures/Xen2_WT_Vessels_broad_cell_type_composition.pdf",
+  "D:/USERS/ELLIOT/Dissertation/results/cell_composition/Xen2/figures/Xen2_wildType_broad_celltype_composition.pdf",
   density = 600
 )
 
 p2 <- image_read_pdf(
- "results/cell_composition/Xen2_KO_Vessels/figures/Xen2_KO_Vessels_broad_cell_type_composition.pdf",
+ "D:/USERS/ELLIOT/Dissertation/results/cell_composition/Xen2/figures/Xen2_knockOut_broad_celltype_composition.pdf",
   density = 600
 )
 
@@ -261,7 +261,7 @@ image_info(final_figure)
 # Save
 image_write(
   final_figure,
- "results/cell_composition/Xen2_KO_Vessels/figures/Xen2_Vessels_broad_cell_type_composition_comparison.png", 
+  "D:/USERS/ELLIOT/Dissertation/results/cell_composition/Xen2/figures/Xen2_broad_celltype_composition_comparison.png", 
   format = "png"
 )
 ```

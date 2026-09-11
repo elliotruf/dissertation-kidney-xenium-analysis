@@ -23,18 +23,18 @@ settings <- list(
   roi_object = file.path(
     "results",
     "ROI_extraction",
-    "Xen1_Male_Cortex",
+    "Xen2_WT_Vessels",
     "objects",
-    "Xen1_Male_Cortex_roi_objects.rds"
+    "Xen2_WT_Vessels_roi_objects.rds"
   ),
   
   # Name used for output directories and files
-  experiment_name = "Xen1_Male_Cortex",
+  experiment_name = "Xen2_WT_Vessels",
   
   # Differential expression
   condition_variable = "condition",   # What is the experimental condition variable called? 
   time_point_variable = "time_point", # What is the time point variable called?
-  reference_time_point = "1wk",      # What will the other time points be compared to?
+  reference_time_point = "sham",      # What will the other time points be compared to?
   
   # edgeR
   assay = "Xenium",
@@ -119,7 +119,7 @@ metadata <- pb$metadata
 metadata_info <- prepare_de_metadata(
   metadata = metadata,
   condition_variable = settings$condition_variable,
-  timepoint_variable = settings$time_point_variable,
+  time_point_variable = settings$time_point_variable,
   reference_time_point = settings$reference_time_point
 )
 
@@ -220,6 +220,18 @@ message("Saving results...")
 # Save DE Tables
 # ==========================================
 
+save_de_tables_edge_r(
+  de_results = de_results,
+  output_dir = output_dirs$de_tables,
+  experiment_name = settings$experiment_name,
+  fdr_cutoff = settings$fdr_cutoff,
+  logfc_cutoff = settings$logfc_cutoff
+)
+
+# ==========================================
+# Save DE Figures
+# ==========================================
+
 save_de_figures_edge_r(
   de_results = de_results,
   output_dir = output_dirs$de_figures,
@@ -229,16 +241,6 @@ save_de_figures_edge_r(
   n_labels = settings$n_labels
 )
 
-# ==========================================
-# Save DE Figures
-# ==========================================
-
-save_go_figures_edge_r(
-  go_results = go_results,
-  output_dir = output_dirs$go_figures,
-  experiment_name = settings$experiment_name,
-  n_terms = settings$go_n_terms
-)
 
 # ==========================================
 # Save GO Tables
@@ -257,8 +259,10 @@ save_go_tables(
 save_go_figures_edge_r(
   go_results = go_results,
   output_dir = output_dirs$go_figures,
-  experiment_name = settings$experiment_name
+  experiment_name = settings$experiment_name,
+  n_terms = settings$go_n_terms
 )
+
 
 # Done
 message("Done!")
