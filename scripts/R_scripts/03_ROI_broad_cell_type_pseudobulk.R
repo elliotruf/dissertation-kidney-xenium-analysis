@@ -24,18 +24,18 @@ settings <- list(
   roi_object = file.path(
     "results",
     "ROI_extraction",
-    "Xen1_Male_Cortex",
+    "Xen2_WT_Vessels",
     "objects",
-    "Xen1_Male_Cortex_roi_objects.rds"
+    "Xen2_WT_Vessels_roi_objects.rds"
   ),
   
   # Name used for output directories and files
-  experiment_name = "Xen1_Male_Cortex",
+  experiment_name = "Xen2_WT_Vessels",
   
   # Differential expression
   condition_variable = "condition",
   time_point_variable = "time_point",
-  reference_time_point = "1wk",
+  reference_time_point = "sham",
   
   # edgeR
   assay = "Xenium",
@@ -98,7 +98,7 @@ rois <- lapply(
   function(x) {
     
     x$broad_type <-
-      assign_broad_celltypes(
+      assign_broad_cell_types(
         x$cell_type
       )
     
