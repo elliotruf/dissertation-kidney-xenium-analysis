@@ -78,7 +78,7 @@ The project expects the following directory format.
 | Item | Description |
 |----|----|
 | **`[dataset].rds`** | Whole-dataset Seurat object (e.g. `Xen1diet.rds`). |
-| **`[dataset].h5ad`** | AnnData verion of the same dataset used for LIANA+ (generated automatically by `06_convert_seurat_to_h5ad.R`). |
+| **`[dataset].h5ad`** | AnnData version of the same dataset used for LIANA+ (generated automatically by `06_convert_seurat_to_h5ad.R`). |
 | **`[dataset_group_tissue]/`** | Folder containing ROI exports for a particular tissue, region, or experimental group (e.g. `Xen1_KO_Vessels`). |
 | **`[time_point]`** | Subdirectory containing ROI exports for a single developmental or experimental time point (e.g. `wk1`, `wk4`, `Sham`). Folder names are user-defined but must match values supplied in the script USER SETTINGS. |
 | **`[ROI_X_cells_stats.csv]`** | `cells_stats.csv` files exported directly from Xenium Explorer. File names are not important; each file represents one ROI. |
@@ -195,14 +195,14 @@ analyses of vascular ROIs, where individual sexes may contain
 insufficient cell numbers for downstream analyses.
 
 `02_ROI_pseudobulk.R` – Performs pseudobulk differential expression
-analysis and and Gene Ontology enrichment analysis for each ROI,
+analysis and Gene Ontology enrichment analysis for each ROI,
 enabling comparison of transcriptional changes within ROIs across
 developmental or experimental time points.
 
 `03_ROI_broad_celltype_pseudobulk.R` – Performs pseudobulk differential
 expression analysis and Gene Ontology enrichment analysis on a specified
 broad cell type (e.g. “Stroma”, “Proximal Tubule”) within each ROI,
-enabling comparison of cell-type-specific transcriptonal changes across
+enabling comparison of cell-type-specific transcriptional changes across
 time points.
 
 `04_wholekidney_celltype_analysis.R` – Performs whole-kidney
@@ -215,13 +215,8 @@ developmental or experimental time points.
 composition across developmental or experimental time points using
 stacked bar charts and summary tables.
 
-`06_singlecell_mixed_model.R` – UNDER DEVELOPMENT Performs single-cell
-differential expression analysis using mixed-effects modelling to accout
-for biological replicate structure while retaining single-cell
-resolution.
-
 `convert_seurat_to_h5ad.R` – Converts a Seurat object into the `.h5ad`
-format required fot the Python-based LIANA+ cell-cell communication
+format required for the Python-based LIANA+ cell-cell communication
 inference workflow.
 
 ### User Settings
@@ -310,11 +305,11 @@ source("scripts/R_scripts/04_wholekidney_celltype_analysis.R")
 ```
 
 Rather than analysing individual ROIs, this workflow analyses every cell
-of a speciifed broad cell type across the entire kidney sample. Outputs
+of a specified broad cell type across the entire kidney sample. Outputs
 include:
 
 - differential expression tables,
-- stackde bar chart summaries,
+- stacked bar chart summaries,
 - heatmaps of differentially expressed genes,
 - Gene Ontology enrichment analyses,
 - GO dot plot visualisations.
@@ -326,7 +321,7 @@ source("scripts/R_scripts/05_cell_composition.R")
 ```
 
 This workflow quantifies changes in cell-type composition across
-developmental or experimentael time points and generates:
+developmental or experimental time points and generates:
 
 - summary tables,
 - stacked bar chart visualisations.
@@ -372,7 +367,7 @@ This workflow:
 Helper functions used throughout the R workflows are stored in
 `scripts/R_scripts/helpers/`
 
-These functions provide resuable code for:
+These functions provide reusable code for:
 
 - pseudobulk processing,
 - differential expression with edgeR,
